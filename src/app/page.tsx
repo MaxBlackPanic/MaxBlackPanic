@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
+import { PricingFreshnessBanner } from "@/components/PricingFreshnessBanner";
 import { PromptEditor } from "@/components/PromptEditor";
 import { ModelTable, type ModelRow } from "@/components/ModelTable";
 import { CostChart } from "@/components/CostChart";
@@ -171,6 +172,7 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <Header />
+      <PricingFreshnessBanner />
       <main className="container mx-auto max-w-[1600px] px-4 py-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* LEFT: editor + system + diff */}

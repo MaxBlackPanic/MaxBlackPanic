@@ -14,6 +14,19 @@ describe("analyser / verbosity", () => {
     expect(after.length).toBeLessThan(text.length);
     expect(after.toLowerCase()).not.toContain("please could you");
   });
+
+  it("rewrite preserves paragraph breaks and capitalises sentences", () => {
+    const text =
+      "You are an analyst.\n\nPlease could you analyse the data. I would like you to be thorough.";
+    const r = analysePrompt(text, 25);
+    const v = r.suggestions.find((s) => s.id === "verbosity")!;
+    const after = v.apply!(text);
+    // Paragraph break preserved.
+    expect(after).toMatch(/analyst\.\n\n/);
+    // Sentences start with capitals.
+    expect(after).toMatch(/\nAnalyse the data/);
+    expect(after).toMatch(/Be thorough/);
+  });
 });
 
 describe("analyser / redundancy", () => {

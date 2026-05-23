@@ -102,7 +102,19 @@ function detectVerbosity(text: string): PromptSuggestion[] {
       apply: (t) => {
         let out = t;
         for (const { re, replacement } of FILLER_PHRASES) out = out.replace(re, replacement);
-        return out.replace(/[ \t]{2,}/g, " ").replace(/^\s+|\s+$/gm, "").trim();
+        // Tidy: collapse runs of inline spaces (preserving newlines), fix dangling
+        // punctuation, drop trailing whitespace per line, and capitalise the first
+        // letter of each sentence that the removal left lowercased.
+        out = out
+          .replace(/[ \t]{2,}/g, " ")
+          .replace(/[ \t]+([.,;:!?])/g, "$1")
+          .replace(/([.,;:!?])\s+(?=[.,;:!?])/g, "$1")
+          .replace(/\b([.,])\s+only\b/gi, " only$1")
+          .replace(/[ \t]+$/gm, "")
+          .replace(/^[ \t]+/gm, (m, _o, s) => (s.endsWith("\n") ? m : ""));
+        // Capitalise sentence starts after punctuation + space.
+        out = out.replace(/(^|[.!?]\s+)([a-z])/g, (_m, p, c) => p + c.toUpperCase());
+        return out.trim();
       },
       category: "verbosity",
     },
@@ -113,7 +125,7 @@ function detectVerbosity(text: string): PromptSuggestion[] {
 
 const REDUNDANT_DIRECTIVES = [
   { name: "be concise", re: /\b(be\s+concise|keep\s+it\s+short|stay\s+brief|be\s+brief)\b/gi },
-  { name: "respond in JSON", re: /\b(respond|return|reply|output)\s+(only\s+)?(in\s+)?(json|valid\s+json)\b/gi },
+  { name: "respond in JSON", re: /\b(respond|return|reply|output)\s+(only\s+)?(in\s+)?(json|valid\s+json)(\s+only)?\s*\.?/gi },
   { name: "do not explain", re: /\b(do\s+not|don['’]t)\s+(explain|apolog(ize|ise)|preamble)\b/gi },
   { name: "step by step", re: /\bstep[- ]?by[- ]?step\b/gi },
   { name: "no markdown", re: /\b(no|without|do\s+not\s+use)\s+markdown\b/gi },
