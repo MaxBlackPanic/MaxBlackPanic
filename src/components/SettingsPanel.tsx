@@ -1,10 +1,11 @@
 "use client";
 
-import { Lock, Unlock, KeyRound } from "lucide-react";
+import { Lock, Unlock, KeyRound, RotateCcw } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { MODELS } from "@/lib/models";
 import { useTokenBurnStore } from "@/lib/store";
 import { Badge } from "./ui/badge";
@@ -29,6 +30,9 @@ export function SettingsPanel() {
     setShowSystem,
     showVolume,
     toggleVolume,
+    showAttachments,
+    setShowAttachments,
+    resetPrompt,
   } = useTokenBurnStore();
 
   return (
@@ -113,6 +117,12 @@ export function SettingsPanel() {
             </Label>
             <Switch id="vol" checked={showVolume} onCheckedChange={toggleVolume} />
           </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="atts" className="text-xs uppercase tracking-wider text-muted-foreground">
+              Attachments &amp; context
+            </Label>
+            <Switch id="atts" checked={showAttachments} onCheckedChange={setShowAttachments} />
+          </div>
         </div>
 
         <div className="rounded-md border bg-muted/20 p-3">
@@ -192,6 +202,16 @@ export function SettingsPanel() {
             <span>DeepSeek, Grok, Llama, Mistral — counts shown ±10%.</span>
           </div>
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={resetPrompt}
+          className="w-full justify-start gap-2 text-xs text-muted-foreground"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Reset prompt &amp; attachments to defaults
+        </Button>
       </CardContent>
     </Card>
   );

@@ -3,6 +3,27 @@
 All notable changes to TokenBurn will be documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Attachments &amp; context panel: conversation history, tool / function-call
+  schemas, image attachments (per-vendor token math), PDF page count — all
+  flow through the same cost pipeline as the prompt.
+- Pricing-freshness banner: warns when any model's `lastVerified` date is
+  older than 45 days.
+- Persistence: prompt, system prompt, attachments, selected models, tier,
+  reasoning budget, cache fraction, volume settings, and dark mode are now
+  stored in `localStorage` under the `tokenburn:v1` key. API keys are
+  deliberately NOT persisted.
+- Reset button on the Settings panel restores the seeded defaults.
+
+### Changed
+
+- Verbosity rewrite now preserves paragraph breaks, capitalises sentence
+  starts, and consumes trailing dangling fragments. Apply-all on the seeded
+  prompt now drops 13.3% of tokens while staying readable.
+
 ## [0.1.0] — 2026-05-23
 
 ### Added

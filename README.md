@@ -126,8 +126,13 @@ and see the delta per model.
 
 - All tokenisation runs client-side; prompts never leave the browser unless you opt in to
   the exact-count endpoints.
-- API keys are stored in session memory only (Zustand) — never persisted to disk and never
-  transmitted to TokenBurn's servers (there are no TokenBurn servers).
+- Prompt, system prompt, attachments, and preferences are persisted to your browser's
+  `localStorage` (under the `tokenburn:v1` key) so you don't lose work on refresh. Clear it
+  via the browser devtools, or use the "Reset prompt &amp; attachments" button on the
+  Settings panel.
+- **API keys are NEVER persisted** — they live in memory for the session only. There are no
+  TokenBurn servers; nothing is transmitted unless you explicitly hit "Run calibration" or
+  switch on exact-count mode.
 - No telemetry, no analytics.
 
 ## License

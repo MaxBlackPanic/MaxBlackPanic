@@ -1,8 +1,16 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_COMPARE_IDS } from "./models";
 import type { Tier } from "./pricing";
+
+export interface ImageAttachment {
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+}
 
 interface TokenBurnState {
   prompt: string;
@@ -12,6 +20,16 @@ interface TokenBurnState {
   /** Optimised prompt — populated when the user applies suggestions. */
   optimisedPrompt: string | null;
 
+  /** Optional conversation history concatenated as a single string. */
+  history: string;
+  /** Optional tool / function schemas (each is a JSON string). */
+  tools: string[];
+  /** Image attachments. */
+  images: ImageAttachment[];
+  /** PDF page count. */
+  pdfPages: number;
+  showAttachments: boolean;
+
   selectedModelIds: string[];
   tier: Tier;
   reasoningBudget: number;
@@ -20,7 +38,9 @@ interface TokenBurnState {
   callsPerDay: number;
   showVolume: boolean;
 
+  /** Exact-count opt-in. Persisted so users don't re-toggle on every visit. */
   exactCountEnabled: boolean;
+  /** API keys are kept in memory only — never persisted. */
   anthropicApiKey: string;
   geminiApiKey: string;
 
@@ -33,6 +53,16 @@ interface TokenBurnState {
   setOptimisedPrompt: (p: string | null) => void;
   acceptOptimisation: () => void;
   revertOptimisation: () => void;
+
+  setHistory: (h: string) => void;
+  setTools: (t: string[]) => void;
+  addTool: () => void;
+  updateTool: (i: number, v: string) => void;
+  removeTool: (i: number) => void;
+  addImage: (img: ImageAttachment) => void;
+  removeImage: (id: string) => void;
+  setPdfPages: (n: number) => void;
+  setShowAttachments: (v: boolean) => void;
 
   toggleModel: (id: string) => void;
   setSelectedModelIds: (ids: string[]) => void;
@@ -48,6 +78,9 @@ interface TokenBurnState {
   setGeminiApiKey: (k: string) => void;
 
   toggleDarkMode: () => void;
+
+  /** Reset the prompt/system/attachments to the seeded defaults. */
+  resetPrompt: () => void;
 }
 
 const DEFAULT_PROMPT = `You are a senior data analyst.
@@ -61,14 +94,20 @@ Q1 Sales Report:
 - Cogs: $2.1M (vs $1.8M Q4)
 - Doohickeys: $300K (vs $500K Q4)`;
 
-export const useTokenBurnStore = create<TokenBurnState>((set) => ({
+const INITIAL = {
   prompt: DEFAULT_PROMPT,
   system: "",
   showSystem: false,
-  optimisedPrompt: null,
+  optimisedPrompt: null as string | null,
+
+  history: "",
+  tools: [] as string[],
+  images: [] as ImageAttachment[],
+  pdfPages: 0,
+  showAttachments: false,
 
   selectedModelIds: DEFAULT_COMPARE_IDS,
-  tier: "standard",
+  tier: "standard" as Tier,
   reasoningBudget: 0,
   cachedInputFraction: 0,
 
@@ -80,33 +119,102 @@ export const useTokenBurnStore = create<TokenBurnState>((set) => ({
   geminiApiKey: "",
 
   darkMode: true,
+};
 
-  setPrompt: (prompt) => set({ prompt }),
-  setSystem: (system) => set({ system }),
-  setShowSystem: (showSystem) => set({ showSystem }),
+export const useTokenBurnStore = create<TokenBurnState>()(
+  persist(
+    (set) => ({
+      ...INITIAL,
 
-  setOptimisedPrompt: (optimisedPrompt) => set({ optimisedPrompt }),
-  acceptOptimisation: () =>
-    set((s) => (s.optimisedPrompt ? { prompt: s.optimisedPrompt, optimisedPrompt: null } : s)),
-  revertOptimisation: () => set({ optimisedPrompt: null }),
+      setPrompt: (prompt) => set({ prompt }),
+      setSystem: (system) => set({ system }),
+      setShowSystem: (showSystem) => set({ showSystem }),
 
-  toggleModel: (id) =>
-    set((s) => ({
-      selectedModelIds: s.selectedModelIds.includes(id)
-        ? s.selectedModelIds.filter((x) => x !== id)
-        : [...s.selectedModelIds, id],
-    })),
-  setSelectedModelIds: (selectedModelIds) => set({ selectedModelIds }),
-  setTier: (tier) => set({ tier }),
-  setReasoningBudget: (reasoningBudget) => set({ reasoningBudget }),
-  setCachedInputFraction: (cachedInputFraction) => set({ cachedInputFraction }),
+      setOptimisedPrompt: (optimisedPrompt) => set({ optimisedPrompt }),
+      acceptOptimisation: () =>
+        set((s) =>
+          s.optimisedPrompt ? { prompt: s.optimisedPrompt, optimisedPrompt: null } : s,
+        ),
+      revertOptimisation: () => set({ optimisedPrompt: null }),
 
-  setCallsPerDay: (callsPerDay) => set({ callsPerDay }),
-  toggleVolume: () => set((s) => ({ showVolume: !s.showVolume })),
+      setHistory: (history) => set({ history }),
+      setTools: (tools) => set({ tools }),
+      addTool: () =>
+        set((s) => ({
+          tools: [...s.tools, '{\n  "name": "new_tool",\n  "parameters": {}\n}'],
+        })),
+      updateTool: (i, v) =>
+        set((s) => ({ tools: s.tools.map((t, idx) => (idx === i ? v : t)) })),
+      removeTool: (i) => set((s) => ({ tools: s.tools.filter((_, idx) => idx !== i) })),
+      addImage: (img) => set((s) => ({ images: [...s.images, img] })),
+      removeImage: (id) => set((s) => ({ images: s.images.filter((i) => i.id !== id) })),
+      setPdfPages: (pdfPages) => set({ pdfPages: Math.max(0, pdfPages) }),
+      setShowAttachments: (showAttachments) => set({ showAttachments }),
 
-  setExactCountEnabled: (exactCountEnabled) => set({ exactCountEnabled }),
-  setAnthropicApiKey: (anthropicApiKey) => set({ anthropicApiKey }),
-  setGeminiApiKey: (geminiApiKey) => set({ geminiApiKey }),
+      toggleModel: (id) =>
+        set((s) => ({
+          selectedModelIds: s.selectedModelIds.includes(id)
+            ? s.selectedModelIds.filter((x) => x !== id)
+            : [...s.selectedModelIds, id],
+        })),
+      setSelectedModelIds: (selectedModelIds) => set({ selectedModelIds }),
+      setTier: (tier) => set({ tier }),
+      setReasoningBudget: (reasoningBudget) => set({ reasoningBudget }),
+      setCachedInputFraction: (cachedInputFraction) => set({ cachedInputFraction }),
 
-  toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
-}));
+      setCallsPerDay: (callsPerDay) => set({ callsPerDay }),
+      toggleVolume: () => set((s) => ({ showVolume: !s.showVolume })),
+
+      setExactCountEnabled: (exactCountEnabled) => set({ exactCountEnabled }),
+      setAnthropicApiKey: (anthropicApiKey) => set({ anthropicApiKey }),
+      setGeminiApiKey: (geminiApiKey) => set({ geminiApiKey }),
+
+      toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
+
+      resetPrompt: () =>
+        set({
+          prompt: DEFAULT_PROMPT,
+          system: "",
+          history: "",
+          tools: [],
+          images: [],
+          pdfPages: 0,
+          optimisedPrompt: null,
+        }),
+    }),
+    {
+      name: "tokenburn:v1",
+      storage: createJSONStorage(() => {
+        if (typeof window === "undefined") {
+          // SSR fallback — no-op storage.
+          return {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+          };
+        }
+        return window.localStorage;
+      }),
+      // Don't persist API keys or the transient optimised prompt.
+      partialize: (s) => ({
+        prompt: s.prompt,
+        system: s.system,
+        showSystem: s.showSystem,
+        history: s.history,
+        tools: s.tools,
+        images: s.images,
+        pdfPages: s.pdfPages,
+        showAttachments: s.showAttachments,
+        selectedModelIds: s.selectedModelIds,
+        tier: s.tier,
+        reasoningBudget: s.reasoningBudget,
+        cachedInputFraction: s.cachedInputFraction,
+        callsPerDay: s.callsPerDay,
+        showVolume: s.showVolume,
+        exactCountEnabled: s.exactCountEnabled,
+        darkMode: s.darkMode,
+      }),
+      version: 1,
+    },
+  ),
+);

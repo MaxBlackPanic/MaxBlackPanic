@@ -11,6 +11,7 @@ import { Suggestions } from "@/components/Suggestions";
 import { DiffView } from "@/components/DiffView";
 import { VolumeCalculator } from "@/components/VolumeCalculator";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
@@ -32,6 +33,11 @@ export default function Home() {
     setOptimisedPrompt,
     acceptOptimisation,
     revertOptimisation,
+    history,
+    tools,
+    images,
+    pdfPages,
+    showAttachments,
     selectedModelIds,
     setSelectedModelIds,
     tier,
@@ -56,17 +62,27 @@ export default function Home() {
 
   const referenceModel = selectedModels.find((m) => m.vendor === "openai") ?? selectedModels[0] ?? MODELS[0];
 
+  // Shared prompt-input shape so every consumer counts the same set of fields.
+  const promptInput = useMemo(
+    () => ({
+      user: prompt,
+      system: showSystem ? system || undefined : undefined,
+      history: history || undefined,
+      tools: tools.length ? tools : undefined,
+      images: images.length ? images.map((i) => ({ width: i.width, height: i.height })) : undefined,
+      pdfPages: pdfPages || undefined,
+    }),
+    [prompt, system, showSystem, history, tools, images, pdfPages],
+  );
+
   const analysis = useMemo(() => {
-    const inputTokens = countPromptTokens({ user: prompt, system: showSystem ? system : undefined }, referenceModel).total;
+    const inputTokens = countPromptTokens(promptInput, referenceModel).total;
     return analysePrompt(prompt, inputTokens);
-  }, [prompt, system, showSystem, referenceModel]);
+  }, [promptInput, prompt, referenceModel]);
 
   const rows: ModelRow[] = useMemo(() => {
     return selectedModels.map((m) => {
-      const tokens = countPromptTokens(
-        { user: prompt, system: showSystem ? system : undefined },
-        m,
-      );
+      const tokens = countPromptTokens(promptInput, m);
       const out = predictOutput(tokens.total, prompt, m);
       const cachedTokens = tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
 
@@ -117,7 +133,7 @@ export default function Home() {
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
       };
     });
-  }, [selectedModels, prompt, system, showSystem, tier, reasoningBudget, cachedInputFraction]);
+  }, [selectedModels, promptInput, prompt, tier, reasoningBudget, cachedInputFraction]);
 
   // Optimised prompt row (single, on the cheapest model) for diff view.
   const optimisedCost = useMemo(() => {
@@ -125,7 +141,7 @@ export default function Home() {
     const cheapest = [...rows].sort((a, b) => a.totalCost - b.totalCost)[0];
     if (!cheapest) return null;
     const tokens = countPromptTokens(
-      { user: optimisedPrompt, system: showSystem ? system : undefined },
+      { ...promptInput, user: optimisedPrompt },
       cheapest.model,
     );
     const out = predictOutput(tokens.total, optimisedPrompt, cheapest.model);
@@ -147,7 +163,7 @@ export default function Home() {
       originalTokens: cheapest.inputTokens,
       originalCost: cheapest.totalCost,
     };
-  }, [optimisedPrompt, rows, system, showSystem, tier, reasoningBudget, cachedInputFraction]);
+  }, [optimisedPrompt, rows, promptInput, tier, reasoningBudget, cachedInputFraction]);
 
   function applySuggestion(s: PromptSuggestion) {
     if (!s.apply) return;
@@ -271,9 +287,10 @@ export default function Home() {
             </Tabs>
           </div>
 
-          {/* RIGHT: settings */}
-          <aside>
+          {/* RIGHT: settings + attachments */}
+          <aside className="space-y-4">
             <SettingsPanel />
+            {showAttachments && <AttachmentsPanel />}
           </aside>
         </div>
 
