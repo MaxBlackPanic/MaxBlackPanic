@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rowsToCSV } from "./exporter";
+import { rowsToCSV, rowsToJSON } from "./exporter";
 import type { ModelRow } from "@/components/ModelTable";
 import { getModel } from "./models";
 
@@ -52,6 +52,36 @@ describe("exporter / CSV", () => {
     // 0.007 * 1000 * 30 = 210.00
     expect(lines[1]).toContain("210.00");
     expect(lines[1]).toContain("batch");
+  });
+
+  it("rowsToJSON emits a structured payload with pricing provenance", () => {
+    const json = rowsToJSON([row()], {
+      tier: "standard",
+      callsPerDay: 1000,
+      includeVolume: true,
+    });
+    const parsed = JSON.parse(json);
+    expect(parsed.tier).toBe("standard");
+    expect(parsed.rows.length).toBe(1);
+    expect(parsed.rows[0].modelId).toBe("gpt-5-4");
+    expect(parsed.rows[0].vendor).toBe("openai");
+    expect(parsed.rows[0].cost.totalPerCall).toBeCloseTo(0.007, 5);
+    expect(parsed.rows[0].cost.monthly).toBeCloseTo(210, 0);
+    expect(parsed.rows[0].cost.annual).toBeCloseTo(2555, 0);
+    expect(parsed.rows[0].pricing.sourceUrl).toMatch(/^https?:/);
+    expect(parsed.rows[0].pricing.lastVerified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(parsed.generatedAt).toMatch(/T.*Z$/);
+  });
+
+  it("rowsToJSON omits monthly/annual when volume disabled", () => {
+    const json = rowsToJSON([row()], {
+      tier: "standard",
+      callsPerDay: 0,
+      includeVolume: false,
+    });
+    const parsed = JSON.parse(json);
+    expect(parsed.rows[0].cost.monthly).toBeUndefined();
+    expect(parsed.rows[0].cost.annual).toBeUndefined();
   });
 
   it("quotes cells containing commas, quotes, or newlines", () => {

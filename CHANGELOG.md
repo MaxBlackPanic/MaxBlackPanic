@@ -7,6 +7,16 @@ All notable changes to TokenBurn will be documented here. The format follows
 
 ### Added
 
+- Live token-count badge in the prompt header (uses the canonical OpenAI
+  exact count so the number is deterministic across vendors).
+- Share-via-URL: "Share" button copies a hash-encoded link with the prompt,
+  system, tier, selected models, and reasoning settings. The payload sits
+  in the URL fragment, so it never leaves the browser on page load — only
+  when the user pastes the URL elsewhere. 16KB payload cap with a helpful
+  error message when exceeded.
+- JSON export alongside CSV — structured payload with per-row pricing
+  provenance (sourceUrl + lastVerified) and optional monthly/annual cost
+  when the volume calculator is enabled.
 - CSV export of the model-comparison table (RFC-4180 compliant), with
   optional monthly / annual columns when the volume calculator is on.
   Filenames are timestamped.

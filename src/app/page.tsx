@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { PricingFreshnessBanner } from "@/components/PricingFreshnessBanner";
@@ -15,15 +15,16 @@ import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, FileJson, Share2, Check } from "lucide-react";
 
 import { useTokenBurnStore } from "@/lib/store";
 import { MODELS } from "@/lib/models";
 import { countPromptTokens } from "@/lib/tokenizer";
 import { predictOutput } from "@/lib/outputPredictor";
-import { computeCost } from "@/lib/pricing";
+import { computeCost, formatTokens } from "@/lib/pricing";
 import { analysePrompt, type PromptSuggestion } from "@/lib/analyser";
-import { rowsToCSV, downloadString, timestampedFilename } from "@/lib/exporter";
+import { rowsToCSV, rowsToJSON, downloadString, timestampedFilename } from "@/lib/exporter";
+import { buildShareUrl, parseShareFromHash } from "@/lib/share";
 
 export default function Home() {
   const {
@@ -57,6 +58,40 @@ export default function Home() {
     if (typeof document === "undefined") return;
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  // One-shot URL share restore. Runs once on mount; clears the hash so the
+  // restored payload doesn't shadow subsequent edits if the user shares
+  // outward later.
+  const [restoredFromShare, setRestoredFromShare] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || restoredFromShare) return;
+    const payload = parseShareFromHash(window.location.hash);
+    if (!payload) return;
+    setPrompt(payload.prompt);
+    if (typeof payload.system === "string") setSystem(payload.system);
+    if (payload.tier) useTokenBurnStore.getState().setTier(payload.tier);
+    if (Array.isArray(payload.models) && payload.models.length) {
+      setSelectedModelIds(payload.models.filter((id) => MODELS.some((m) => m.id === id)));
+    }
+    if (typeof payload.reasoning === "number") {
+      useTokenBurnStore.getState().setReasoningBudget(payload.reasoning);
+    }
+    if (typeof payload.cachedFrac === "number") {
+      useTokenBurnStore.getState().setCachedInputFraction(payload.cachedFrac);
+    }
+    if (window.history?.replaceState) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    setRestoredFromShare(true);
+  }, [restoredFromShare, setPrompt, setSystem, setSelectedModelIds]);
+
+  // "Copied" affordance for the share button.
+  const [shareCopiedAt, setShareCopiedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (shareCopiedAt === null) return;
+    const t = setTimeout(() => setShareCopiedAt(null), 2000);
+    return () => clearTimeout(t);
+  }, [shareCopiedAt]);
 
   const selectedModels = useMemo(
     () => MODELS.filter((m) => selectedModelIds.includes(m.id)),
@@ -191,7 +226,39 @@ export default function Home() {
     downloadString(csv, timestampedFilename("tokenburn-comparison", "csv"), "text/csv");
   }
 
+  function exportJSON() {
+    const json = rowsToJSON(rows, { tier, callsPerDay, includeVolume: showVolume });
+    downloadString(json, timestampedFilename("tokenburn-comparison", "json"), "application/json");
+  }
+
+  async function copyShareLink() {
+    try {
+      const url = buildShareUrl({
+        v: 1,
+        prompt,
+        system: showSystem && system ? system : undefined,
+        tier,
+        models: selectedModelIds,
+        reasoning: reasoningBudget || undefined,
+        cachedFrac: cachedInputFraction || undefined,
+      });
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else if (typeof window !== "undefined") {
+        window.prompt("Copy this URL to share:", url);
+      }
+      setShareCopiedAt(Date.now());
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
   const hasEstimateOnlyVendors = rows.some((r) => r.tokenConfidence !== "exact");
+  // Display the canonical (exact, OpenAI) token count next to the editor.
+  const liveTokenCount = useMemo(
+    () => countPromptTokens(promptInput, referenceModel).total,
+    [promptInput, referenceModel],
+  );
 
   return (
     <div className="min-h-screen">
@@ -205,6 +272,9 @@ export default function Home() {
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-base">Prompt</CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    {formatTokens(liveTokenCount)} tokens
+                  </Badge>
                   {analysis.taskClass && (
                     <Badge variant="outline" className="text-[10px]">
                       task: {analysis.taskClass}
@@ -215,6 +285,25 @@ export default function Home() {
                       includes estimated counts
                     </Badge>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={copyShareLink}
+                    className="h-7 gap-1.5 text-xs"
+                    title="Copy a shareable link (the prompt is encoded into the URL fragment and never sent over the wire)"
+                  >
+                    {shareCopiedAt ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="h-3.5 w-3.5" />
+                        Share
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -264,16 +353,28 @@ export default function Home() {
                     Suggestions ({analysis.suggestions.length})
                   </TabsTrigger>
                 </TabsList>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={exportCSV}
-                  disabled={rows.length === 0}
-                  className="gap-1.5"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export CSV
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={exportCSV}
+                    disabled={rows.length === 0}
+                    className="gap-1.5"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={exportJSON}
+                    disabled={rows.length === 0}
+                    className="gap-1.5"
+                  >
+                    <FileJson className="h-3.5 w-3.5" />
+                    JSON
+                  </Button>
+                </div>
               </div>
               <TabsContent value="table" className="space-y-3">
                 <ModelTable rows={rows} tier={tier} onSelectCheapest={selectCheapest} />

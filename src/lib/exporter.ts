@@ -106,3 +106,62 @@ export function timestampedFilename(prefix: string, ext: string): string {
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   return `${prefix}-${stamp}.${ext}`;
 }
+
+export interface JsonExport {
+  generatedAt: string;
+  tier: Tier;
+  callsPerDay: number;
+  rows: Array<{
+    modelId: string;
+    modelLabel: string;
+    vendor: string;
+    inputTokens: number;
+    outputRange: { low: number; expected: number; high: number };
+    cost: {
+      input: number;
+      output: number;
+      totalPerCall: number;
+      totalLow: number;
+      totalHigh: number;
+      monthly?: number;
+      annual?: number;
+    };
+    contextUtilisation: number;
+    tokenConfidence: string;
+    tokenUncertaintyFraction: number;
+    pricing: { lastVerified: string; sourceUrl: string };
+  }>;
+}
+
+export function rowsToJSON(rows: ModelRow[], opts: ExportOptions): string {
+  const payload: JsonExport = {
+    generatedAt: new Date().toISOString(),
+    tier: opts.tier,
+    callsPerDay: opts.callsPerDay,
+    rows: rows.map((r) => ({
+      modelId: r.model.id,
+      modelLabel: r.model.label,
+      vendor: r.model.vendor,
+      inputTokens: r.inputTokens,
+      outputRange: { low: r.outputLow, expected: r.outputExpected, high: r.outputHigh },
+      cost: {
+        input: Number(r.inputCost.toFixed(6)),
+        output: Number(r.outputCost.toFixed(6)),
+        totalPerCall: Number(r.totalCost.toFixed(6)),
+        totalLow: Number(r.totalCostLow.toFixed(6)),
+        totalHigh: Number(r.totalCostHigh.toFixed(6)),
+        ...(opts.includeVolume
+          ? {
+              monthly: Number((r.totalCost * opts.callsPerDay * 30).toFixed(2)),
+              annual: Number((r.totalCost * opts.callsPerDay * 365).toFixed(2)),
+            }
+          : {}),
+      },
+      contextUtilisation: Number(r.contextUtilisation.toFixed(4)),
+      tokenConfidence: r.tokenConfidence,
+      tokenUncertaintyFraction: Number(r.tokenUncertaintyFraction.toFixed(4)),
+      pricing: { lastVerified: r.model.lastVerified, sourceUrl: r.model.sourceUrl },
+    })),
+  };
+  return JSON.stringify(payload, null, 2);
+}
