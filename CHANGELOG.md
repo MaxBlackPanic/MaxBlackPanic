@@ -7,6 +7,12 @@ All notable changes to TokenBurn will be documented here. The format follows
 
 ### Added
 
+- CSV export of the model-comparison table (RFC-4180 compliant), with
+  optional monthly / annual columns when the volume calculator is on.
+  Filenames are timestamped.
+- Image upload: drop or pick an image file and the panel reads the
+  dimensions directly off the bitmap — no need to type W/H. The file
+  itself never leaves the browser (object-URL only).
 - Attachments &amp; context panel: conversation history, tool / function-call
   schemas, image attachments (per-vendor token math), PDF page count — all
   flow through the same cost pipeline as the prompt.

@@ -14,6 +14,8 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 import { useTokenBurnStore } from "@/lib/store";
 import { MODELS } from "@/lib/models";
@@ -21,6 +23,7 @@ import { countPromptTokens } from "@/lib/tokenizer";
 import { predictOutput } from "@/lib/outputPredictor";
 import { computeCost } from "@/lib/pricing";
 import { analysePrompt, type PromptSuggestion } from "@/lib/analyser";
+import { rowsToCSV, downloadString, timestampedFilename } from "@/lib/exporter";
 
 export default function Home() {
   const {
@@ -183,6 +186,11 @@ export default function Home() {
     setSelectedModelIds([id]);
   }
 
+  function exportCSV() {
+    const csv = rowsToCSV(rows, { tier, callsPerDay, includeVolume: showVolume });
+    downloadString(csv, timestampedFilename("tokenburn-comparison", "csv"), "text/csv");
+  }
+
   const hasEstimateOnlyVendors = rows.some((r) => r.tokenConfidence !== "exact");
 
   return (
@@ -248,13 +256,25 @@ export default function Home() {
             )}
 
             <Tabs defaultValue="table">
-              <TabsList>
-                <TabsTrigger value="table">Model comparison</TabsTrigger>
-                <TabsTrigger value="chart">Cost breakdown</TabsTrigger>
-                <TabsTrigger value="suggestions">
-                  Suggestions ({analysis.suggestions.length})
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <TabsList>
+                  <TabsTrigger value="table">Model comparison</TabsTrigger>
+                  <TabsTrigger value="chart">Cost breakdown</TabsTrigger>
+                  <TabsTrigger value="suggestions">
+                    Suggestions ({analysis.suggestions.length})
+                  </TabsTrigger>
+                </TabsList>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exportCSV}
+                  disabled={rows.length === 0}
+                  className="gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
+              </div>
               <TabsContent value="table" className="space-y-3">
                 <ModelTable rows={rows} tier={tier} onSelectCheapest={selectCheapest} />
                 {showVolume && (
