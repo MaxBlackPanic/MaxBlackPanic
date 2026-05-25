@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Moon, Sun, BookOpen, BarChart3 } from "lucide-react";
+import { Flame, Moon, Sun, BookOpen, BarChart3, Calculator } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTokenBurnStore } from "@/lib/store";
@@ -19,6 +19,12 @@ export function Header() {
         </span>
       </div>
       <div className="flex items-center gap-2">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/forecast" className="gap-1.5">
+            <Calculator className="h-3.5 w-3.5" />
+            Forecast
+          </Link>
+        </Button>
         <Button asChild variant="ghost" size="sm">
           <Link href="/calibration" className="gap-1.5">
             <BarChart3 className="h-3.5 w-3.5" />

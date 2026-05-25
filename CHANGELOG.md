@@ -7,6 +7,15 @@ All notable changes to TokenBurn will be documented here. The format follows
 
 ### Added
 
+- `/forecast` page: a no-prompt-required cost sandbox for finance
+  modelling. Direct inputs for tokens / call, output tokens, daily
+  call volume, reasoning budget, cache hit fraction, and tier.
+  Three scenario modes: single, "vs cached", "vs batch" (each
+  surfaces the second column in the comparison table). Reuses the
+  Model comparison table + Cost chart + CSV / JSON exporter. Cheapest
+  vs most-expensive projection cards highlight the annual savings
+  from routing.
+- Header link to the new page (Forecast).
 - Manual A/B compare mode. Toggle "A/B compare mode" in Settings to
   render a second editor for Prompt B. The Model comparison table grows
   "B total" and "Δ (A − B)" columns (sortable by delta — green = B
