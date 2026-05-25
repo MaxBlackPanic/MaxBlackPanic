@@ -32,6 +32,8 @@ export function SettingsPanel() {
     toggleVolume,
     showAttachments,
     setShowAttachments,
+    abMode,
+    setAbMode,
     resetPrompt,
   } = useTokenBurnStore();
 
@@ -122,6 +124,12 @@ export function SettingsPanel() {
               Attachments &amp; context
             </Label>
             <Switch id="atts" checked={showAttachments} onCheckedChange={setShowAttachments} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="ab" className="text-xs uppercase tracking-wider text-muted-foreground">
+              A/B compare mode
+            </Label>
+            <Switch id="ab" checked={abMode} onCheckedChange={setAbMode} />
           </div>
         </div>
 

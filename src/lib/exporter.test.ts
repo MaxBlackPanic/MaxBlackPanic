@@ -84,6 +84,41 @@ describe("exporter / CSV", () => {
     expect(parsed.rows[0].cost.annual).toBeUndefined();
   });
 
+  it("appends B and delta columns when rowsB is provided", () => {
+    const a = row({ totalCost: 0.01, inputTokens: 1000, inputCost: 0.005, outputCost: 0.005 });
+    const b = row({ totalCost: 0.006, inputTokens: 800, inputCost: 0.003, outputCost: 0.003 });
+    const csv = rowsToCSV([a], {
+      tier: "standard",
+      callsPerDay: 0,
+      includeVolume: false,
+      rowsB: [b],
+    });
+    const lines = csv.trim().split("\n");
+    expect(lines[0]).toContain("b_input_tokens");
+    expect(lines[0]).toContain("b_total_cost_usd");
+    expect(lines[0]).toContain("delta_total_usd");
+    expect(lines[0]).toContain("delta_total_pct");
+    expect(lines[1]).toContain("0.006000"); // b_total
+    expect(lines[1]).toContain("0.004000"); // delta_total (0.01 − 0.006)
+    expect(lines[1]).toContain("40.00"); // delta_pct (40%)
+  });
+
+  it("rowsToJSON includes b + delta when rowsB is provided", () => {
+    const a = row({ totalCost: 0.01 });
+    const b = row({ totalCost: 0.006 });
+    const json = rowsToJSON([a], {
+      tier: "standard",
+      callsPerDay: 0,
+      includeVolume: false,
+      rowsB: [b],
+    });
+    const parsed = JSON.parse(json);
+    expect(parsed.rows[0].b).toBeDefined();
+    expect(parsed.rows[0].b.cost.totalPerCall).toBeCloseTo(0.006, 5);
+    expect(parsed.rows[0].delta.totalUsd).toBeCloseTo(0.004, 5);
+    expect(parsed.rows[0].delta.totalPct).toBeCloseTo(40, 1);
+  });
+
   it("quotes cells containing commas, quotes, or newlines", () => {
     const m = getModel("gpt-5-4");
     const r: ModelRow = row({

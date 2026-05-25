@@ -7,6 +7,13 @@ All notable changes to TokenBurn will be documented here. The format follows
 
 ### Added
 
+- Manual A/B compare mode. Toggle "A/B compare mode" in Settings to
+  render a second editor for Prompt B. The Model comparison table grows
+  "B total" and "Δ (A − B)" columns (sortable by delta — green = B
+  cheaper, red = A cheaper). CSV / JSON export gain b_* and delta_*
+  columns. The Diff view auto-pops with A vs B; "Accept B" promotes B
+  to the active prompt and exits A/B mode. Share links round-trip the
+  full A/B state.
 - Live token-count badge in the prompt header (uses the canonical OpenAI
   exact count so the number is deterministic across vendors).
 - Share-via-URL: "Share" button copies a hash-encoded link with the prompt,

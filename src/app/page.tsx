@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { PricingFreshnessBanner } from "@/components/PricingFreshnessBanner";
@@ -15,7 +15,7 @@ import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileJson, Share2, Check } from "lucide-react";
+import { Download, FileJson, Share2, Check, ArrowLeftRight } from "lucide-react";
 
 import { useTokenBurnStore } from "@/lib/store";
 import { MODELS } from "@/lib/models";
@@ -37,6 +37,12 @@ export default function Home() {
     setOptimisedPrompt,
     acceptOptimisation,
     revertOptimisation,
+    abMode,
+    setAbMode,
+    promptB,
+    setPromptB,
+    swapAB,
+    acceptB,
     history,
     tools,
     images,
@@ -68,6 +74,8 @@ export default function Home() {
     const payload = parseShareFromHash(window.location.hash);
     if (!payload) return;
     setPrompt(payload.prompt);
+    if (typeof payload.promptB === "string") setPromptB(payload.promptB);
+    if (typeof payload.abMode === "boolean") setAbMode(payload.abMode);
     if (typeof payload.system === "string") setSystem(payload.system);
     if (payload.tier) useTokenBurnStore.getState().setTier(payload.tier);
     if (Array.isArray(payload.models) && payload.models.length) {
@@ -83,7 +91,7 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     setRestoredFromShare(true);
-  }, [restoredFromShare, setPrompt, setSystem, setSelectedModelIds]);
+  }, [restoredFromShare, setPrompt, setSystem, setSelectedModelIds, setPromptB, setAbMode]);
 
   // "Copied" affordance for the share button.
   const [shareCopiedAt, setShareCopiedAt] = useState<number | null>(null);
@@ -118,11 +126,13 @@ export default function Home() {
     return analysePrompt(prompt, inputTokens);
   }, [promptInput, prompt, referenceModel]);
 
-  const rows: ModelRow[] = useMemo(() => {
-    return selectedModels.map((m) => {
-      const tokens = countPromptTokens(promptInput, m);
-      const out = predictOutput(tokens.total, prompt, m);
-      const cachedTokens = tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
+  const buildRow = useCallback(
+    (m: typeof MODELS[number], pInput: typeof promptInput, userText: string): ModelRow => {
+      const tokens = countPromptTokens(pInput, m);
+      const out = predictOutput(tokens.total, userText, m);
+      const cachedTokens =
+        tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
+      const effectiveTier: "standard" | "batch" = tier === "cached" ? "standard" : tier;
 
       const expected = computeCost(
         m,
@@ -132,7 +142,7 @@ export default function Home() {
           reasoningTokens: m.supportsReasoning ? reasoningBudget : 0,
           cachedInputTokens: cachedTokens,
         },
-        tier === "cached" ? "standard" : tier,
+        effectiveTier,
       );
       const low = computeCost(
         m,
@@ -142,7 +152,7 @@ export default function Home() {
           reasoningTokens: m.supportsReasoning ? Math.min(reasoningBudget, 1024) : 0,
           cachedInputTokens: cachedTokens,
         },
-        tier === "cached" ? "standard" : tier,
+        effectiveTier,
       );
       const high = computeCost(
         m,
@@ -152,7 +162,7 @@ export default function Home() {
           reasoningTokens: m.supportsReasoning ? reasoningBudget : 0,
           cachedInputTokens: cachedTokens,
         },
-        tier === "cached" ? "standard" : tier,
+        effectiveTier,
       );
 
       return {
@@ -161,7 +171,8 @@ export default function Home() {
         outputLow: out.low,
         outputExpected: out.expected,
         outputHigh: out.high,
-        inputCost: expected.inputCost + expected.cachedInputCost + expected.longContextSurchargeCost,
+        inputCost:
+          expected.inputCost + expected.cachedInputCost + expected.longContextSurchargeCost,
         outputCost: expected.outputCost + expected.reasoningCost,
         totalCost: expected.total,
         totalCostLow: low.total,
@@ -170,8 +181,25 @@ export default function Home() {
         tokenConfidence: tokens.confidence,
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
       };
-    });
-  }, [selectedModels, promptInput, prompt, tier, reasoningBudget, cachedInputFraction]);
+    },
+    [tier, reasoningBudget, cachedInputFraction],
+  );
+
+  const rows: ModelRow[] = useMemo(
+    () => selectedModels.map((m) => buildRow(m, promptInput, prompt)),
+    [selectedModels, promptInput, prompt, buildRow],
+  );
+
+  const promptInputB = useMemo(
+    () => ({ ...promptInput, user: promptB }),
+    [promptInput, promptB],
+  );
+
+  const rowsB: ModelRow[] | undefined = useMemo(
+    () =>
+      abMode ? selectedModels.map((m) => buildRow(m, promptInputB, promptB)) : undefined,
+    [abMode, selectedModels, promptInputB, promptB, buildRow],
+  );
 
   // Optimised prompt row (single, on the cheapest model) for diff view.
   const optimisedCost = useMemo(() => {
@@ -222,12 +250,22 @@ export default function Home() {
   }
 
   function exportCSV() {
-    const csv = rowsToCSV(rows, { tier, callsPerDay, includeVolume: showVolume });
+    const csv = rowsToCSV(rows, {
+      tier,
+      callsPerDay,
+      includeVolume: showVolume,
+      rowsB: abMode ? rowsB : undefined,
+    });
     downloadString(csv, timestampedFilename("tokenburn-comparison", "csv"), "text/csv");
   }
 
   function exportJSON() {
-    const json = rowsToJSON(rows, { tier, callsPerDay, includeVolume: showVolume });
+    const json = rowsToJSON(rows, {
+      tier,
+      callsPerDay,
+      includeVolume: showVolume,
+      rowsB: abMode ? rowsB : undefined,
+    });
     downloadString(json, timestampedFilename("tokenburn-comparison", "json"), "application/json");
   }
 
@@ -236,6 +274,8 @@ export default function Home() {
       const url = buildShareUrl({
         v: 1,
         prompt,
+        promptB: abMode ? promptB : undefined,
+        abMode: abMode || undefined,
         system: showSystem && system ? system : undefined,
         tier,
         models: selectedModelIds,
@@ -254,11 +294,31 @@ export default function Home() {
   }
 
   const hasEstimateOnlyVendors = rows.some((r) => r.tokenConfidence !== "exact");
-  // Display the canonical (exact, OpenAI) token count next to the editor.
+  // Live token counts (exact, OpenAI reference) for the editor headers.
   const liveTokenCount = useMemo(
     () => countPromptTokens(promptInput, referenceModel).total,
     [promptInput, referenceModel],
   );
+  const liveTokenCountB = useMemo(
+    () => (abMode ? countPromptTokens(promptInputB, referenceModel).total : 0),
+    [abMode, promptInputB, referenceModel],
+  );
+
+  // For A/B diff card.
+  const abTotals = useMemo(() => {
+    if (!abMode || !rowsB) return null;
+    const cheapest = [...rows].sort((a, b) => a.totalCost - b.totalCost)[0];
+    if (!cheapest) return null;
+    const bRow = rowsB.find((r) => r.model.id === cheapest.model.id);
+    if (!bRow) return null;
+    return {
+      modelLabel: cheapest.model.label,
+      aTokens: cheapest.inputTokens,
+      bTokens: bRow.inputTokens,
+      aCost: cheapest.totalCost,
+      bCost: bRow.totalCost,
+    };
+  }, [abMode, rows, rowsB]);
 
   return (
     <div className="min-h-screen">
@@ -270,7 +330,10 @@ export default function Home() {
           <div className="space-y-4">
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-base">Prompt</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {abMode && <Badge variant="default" className="text-[10px]">A</Badge>}
+                  Prompt{abMode ? " A" : ""}
+                </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {formatTokens(liveTokenCount)} tokens
@@ -284,6 +347,18 @@ export default function Home() {
                     <Badge variant="warn" className="text-[10px]">
                       includes estimated counts
                     </Badge>
+                  )}
+                  {abMode && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={swapAB}
+                      className="h-7 gap-1.5 text-xs"
+                      title="Swap A and B"
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      Swap
+                    </Button>
                   )}
                   <Button
                     size="sm"
@@ -318,7 +393,7 @@ export default function Home() {
                 {showSystem && (
                   <div className="border-t bg-muted/20 p-3">
                     <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
-                      System prompt
+                      System prompt (shared by A &amp; B)
                     </div>
                     <textarea
                       value={system}
@@ -331,7 +406,56 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            {optimisedPrompt !== null && optimisedCost && (
+            {abMode && (
+              <Card className="overflow-hidden border-emerald-700/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Badge variant="success" className="text-[10px]">B</Badge>
+                    Prompt B
+                  </CardTitle>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {formatTokens(liveTokenCountB)} tokens
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={acceptB}
+                      className="h-7 gap-1.5 text-xs"
+                      title="Promote B to the active prompt and exit A/B mode"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Accept B
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="h-[420px] border-t">
+                    <PromptEditor
+                      value={promptB}
+                      onChange={setPromptB}
+                      suggestions={[]}
+                      darkMode={darkMode}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {abMode && abTotals && (
+              <DiffView
+                before={prompt}
+                after={promptB}
+                beforeTokens={abTotals.aTokens}
+                afterTokens={abTotals.bTokens}
+                beforeCost={abTotals.aCost}
+                afterCost={abTotals.bCost}
+                onAccept={acceptB}
+                onRevert={() => setAbMode(false)}
+              />
+            )}
+
+            {!abMode && optimisedPrompt !== null && optimisedCost && (
               <DiffView
                 before={prompt}
                 after={optimisedPrompt}
@@ -377,7 +501,12 @@ export default function Home() {
                 </div>
               </div>
               <TabsContent value="table" className="space-y-3">
-                <ModelTable rows={rows} tier={tier} onSelectCheapest={selectCheapest} />
+                <ModelTable
+                  rows={rows}
+                  rowsB={abMode ? rowsB : undefined}
+                  tier={tier}
+                  onSelectCheapest={selectCheapest}
+                />
                 {showVolume && (
                   <VolumeCalculator
                     rows={rows}

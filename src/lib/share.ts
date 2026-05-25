@@ -10,6 +10,9 @@ import type { Tier } from "./pricing";
 export interface SharePayload {
   v: 1;
   prompt: string;
+  /** Optional B prompt for manual A/B compare mode. */
+  promptB?: string;
+  abMode?: boolean;
   system?: string;
   tier?: Tier;
   models?: string[];

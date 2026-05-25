@@ -22,6 +22,12 @@ export interface ExportOptions {
   tier: Tier;
   callsPerDay: number;
   includeVolume: boolean;
+  /**
+   * Optional B-side rows for manual A/B compare. When provided, the export
+   * gains b_* columns and a delta_total_usd column (A − B). Must be the same
+   * length and ordering as the primary `rows` argument.
+   */
+  rowsB?: ModelRow[];
 }
 
 export function rowsToCSV(rows: ModelRow[], opts: ExportOptions): string {
@@ -46,13 +52,20 @@ export function rowsToCSV(rows: ModelRow[], opts: ExportOptions): string {
     "pricing_source_url",
   ];
   if (opts.includeVolume) {
+    header.push("calls_per_day", "monthly_cost_usd", "annual_cost_usd");
+  }
+  if (opts.rowsB) {
     header.push(
-      "calls_per_day",
-      "monthly_cost_usd",
-      "annual_cost_usd",
+      "b_input_tokens",
+      "b_input_cost_usd",
+      "b_output_cost_usd",
+      "b_total_cost_usd",
+      "delta_total_usd",
+      "delta_total_pct",
     );
   }
 
+  const byId = new Map(opts.rowsB?.map((r) => [r.model.id, r]) ?? []);
   const lines = [csvRow(header)];
   for (const r of rows) {
     const row: Array<string | number> = [
@@ -81,6 +94,23 @@ export function rowsToCSV(rows: ModelRow[], opts: ExportOptions): string {
         (r.totalCost * opts.callsPerDay * 30).toFixed(2),
         (r.totalCost * opts.callsPerDay * 365).toFixed(2),
       );
+    }
+    if (opts.rowsB) {
+      const b = byId.get(r.model.id);
+      if (b) {
+        const delta = r.totalCost - b.totalCost;
+        const pct = r.totalCost === 0 ? 0 : (delta / r.totalCost) * 100;
+        row.push(
+          b.inputTokens,
+          b.inputCost.toFixed(6),
+          b.outputCost.toFixed(6),
+          b.totalCost.toFixed(6),
+          delta.toFixed(6),
+          pct.toFixed(2),
+        );
+      } else {
+        row.push("", "", "", "", "", "");
+      }
     }
     lines.push(csvRow(row));
   }
@@ -130,38 +160,63 @@ export interface JsonExport {
     tokenConfidence: string;
     tokenUncertaintyFraction: number;
     pricing: { lastVerified: string; sourceUrl: string };
+    b?: { inputTokens: number; cost: { input: number; output: number; totalPerCall: number } };
+    delta?: { totalUsd: number; totalPct: number };
   }>;
 }
 
 export function rowsToJSON(rows: ModelRow[], opts: ExportOptions): string {
+  const byId = new Map(opts.rowsB?.map((r) => [r.model.id, r]) ?? []);
   const payload: JsonExport = {
     generatedAt: new Date().toISOString(),
     tier: opts.tier,
     callsPerDay: opts.callsPerDay,
-    rows: rows.map((r) => ({
-      modelId: r.model.id,
-      modelLabel: r.model.label,
-      vendor: r.model.vendor,
-      inputTokens: r.inputTokens,
-      outputRange: { low: r.outputLow, expected: r.outputExpected, high: r.outputHigh },
-      cost: {
-        input: Number(r.inputCost.toFixed(6)),
-        output: Number(r.outputCost.toFixed(6)),
-        totalPerCall: Number(r.totalCost.toFixed(6)),
-        totalLow: Number(r.totalCostLow.toFixed(6)),
-        totalHigh: Number(r.totalCostHigh.toFixed(6)),
-        ...(opts.includeVolume
+    rows: rows.map((r) => {
+      const b = byId.get(r.model.id);
+      return {
+        modelId: r.model.id,
+        modelLabel: r.model.label,
+        vendor: r.model.vendor,
+        inputTokens: r.inputTokens,
+        outputRange: { low: r.outputLow, expected: r.outputExpected, high: r.outputHigh },
+        cost: {
+          input: Number(r.inputCost.toFixed(6)),
+          output: Number(r.outputCost.toFixed(6)),
+          totalPerCall: Number(r.totalCost.toFixed(6)),
+          totalLow: Number(r.totalCostLow.toFixed(6)),
+          totalHigh: Number(r.totalCostHigh.toFixed(6)),
+          ...(opts.includeVolume
+            ? {
+                monthly: Number((r.totalCost * opts.callsPerDay * 30).toFixed(2)),
+                annual: Number((r.totalCost * opts.callsPerDay * 365).toFixed(2)),
+              }
+            : {}),
+        },
+        contextUtilisation: Number(r.contextUtilisation.toFixed(4)),
+        tokenConfidence: r.tokenConfidence,
+        tokenUncertaintyFraction: Number(r.tokenUncertaintyFraction.toFixed(4)),
+        pricing: { lastVerified: r.model.lastVerified, sourceUrl: r.model.sourceUrl },
+        ...(b
           ? {
-              monthly: Number((r.totalCost * opts.callsPerDay * 30).toFixed(2)),
-              annual: Number((r.totalCost * opts.callsPerDay * 365).toFixed(2)),
+              b: {
+                inputTokens: b.inputTokens,
+                cost: {
+                  input: Number(b.inputCost.toFixed(6)),
+                  output: Number(b.outputCost.toFixed(6)),
+                  totalPerCall: Number(b.totalCost.toFixed(6)),
+                },
+              },
+              delta: {
+                totalUsd: Number((r.totalCost - b.totalCost).toFixed(6)),
+                totalPct:
+                  r.totalCost === 0
+                    ? 0
+                    : Number((((r.totalCost - b.totalCost) / r.totalCost) * 100).toFixed(2)),
+              },
             }
           : {}),
-      },
-      contextUtilisation: Number(r.contextUtilisation.toFixed(4)),
-      tokenConfidence: r.tokenConfidence,
-      tokenUncertaintyFraction: Number(r.tokenUncertaintyFraction.toFixed(4)),
-      pricing: { lastVerified: r.model.lastVerified, sourceUrl: r.model.sourceUrl },
-    })),
+      };
+    }),
   };
   return JSON.stringify(payload, null, 2);
 }

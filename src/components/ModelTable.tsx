@@ -25,7 +25,13 @@ export interface ModelRow {
   tokenUncertaintyFraction: number;
 }
 
-type SortKey = "totalCost" | "inputCost" | "outputCost" | "contextUtilisation" | "vendor";
+type SortKey =
+  | "totalCost"
+  | "inputCost"
+  | "outputCost"
+  | "contextUtilisation"
+  | "vendor"
+  | "delta";
 
 const VENDOR_BADGE: Record<Vendor, { label: string; className: string }> = {
   anthropic: { label: "Anthropic", className: "bg-amber-600/15 text-amber-500 border-amber-700/30" },
@@ -41,11 +47,18 @@ interface Props {
   rows: ModelRow[];
   tier: Tier;
   onSelectCheapest?: (modelId: string) => void;
+  /** Optional B-side rows for manual A/B compare. */
+  rowsB?: ModelRow[];
 }
 
-export function ModelTable({ rows, tier, onSelectCheapest }: Props) {
+export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("totalCost");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const bById = useMemo(
+    () => new Map((rowsB ?? []).map((r) => [r.model.id, r])),
+    [rowsB],
+  );
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -73,13 +86,20 @@ export function ModelTable({ rows, tier, onSelectCheapest }: Props) {
           av = a.model.vendor;
           bv = b.model.vendor;
           break;
+        case "delta": {
+          const aB = bById.get(a.model.id);
+          const bB = bById.get(b.model.id);
+          av = aB ? a.totalCost - aB.totalCost : 0;
+          bv = bB ? b.totalCost - bB.totalCost : 0;
+          break;
+        }
       }
       const dir = sortDir === "asc" ? 1 : -1;
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
     return copy;
-  }, [rows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir, bById]);
 
   const cheapestId = sorted[0]?.model.id;
 
@@ -112,7 +132,15 @@ export function ModelTable({ rows, tier, onSelectCheapest }: Props) {
               <th className="px-3 py-2 text-right">Output (exp)</th>
               <th className="px-3 py-2 text-right">{headerBtn("Input cost", "inputCost")}</th>
               <th className="px-3 py-2 text-right">{headerBtn("Output cost", "outputCost")}</th>
-              <th className="px-3 py-2 text-right">{headerBtn("Total / call", "totalCost")}</th>
+              <th className="px-3 py-2 text-right">
+                {rowsB ? headerBtn("A total", "totalCost") : headerBtn("Total / call", "totalCost")}
+              </th>
+              {rowsB && (
+                <>
+                  <th className="px-3 py-2 text-right">B total</th>
+                  <th className="px-3 py-2 text-right">{headerBtn("Δ (A − B)", "delta")}</th>
+                </>
+              )}
               <th className="px-3 py-2 text-right">
                 {headerBtn("Context", "contextUtilisation")}
               </th>
@@ -183,6 +211,38 @@ export function ModelTable({ rows, tier, onSelectCheapest }: Props) {
                       </TooltipContent>
                     </Tooltip>
                   </td>
+                  {rowsB && (() => {
+                    const b = bById.get(m.id);
+                    if (!b) {
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                        </>
+                      );
+                    }
+                    const delta = row.totalCost - b.totalCost;
+                    const pct = row.totalCost === 0 ? 0 : (delta / row.totalCost) * 100;
+                    const sign = delta > 0 ? "−" : delta < 0 ? "+" : "";
+                    const deltaToneClass =
+                      delta > 0
+                        ? "text-emerald-500"
+                        : delta < 0
+                          ? "text-destructive"
+                          : "text-muted-foreground";
+                    return (
+                      <>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                          {formatUSD(b.totalCost)}
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums font-semibold ${deltaToneClass}`}>
+                          {sign}
+                          {formatUSD(Math.abs(delta))}
+                          <span className="ml-1 text-[10px] opacity-70">({Math.abs(pct).toFixed(1)}%)</span>
+                        </td>
+                      </>
+                    );
+                  })()}
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <span className="tabular-nums text-xs text-muted-foreground">

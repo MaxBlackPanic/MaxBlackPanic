@@ -20,6 +20,10 @@ interface TokenBurnState {
   /** Optimised prompt — populated when the user applies suggestions. */
   optimisedPrompt: string | null;
 
+  /** Manual A/B compare mode. When true, promptB is rendered as a second editor. */
+  abMode: boolean;
+  promptB: string;
+
   /** Optional conversation history concatenated as a single string. */
   history: string;
   /** Optional tool / function schemas (each is a JSON string). */
@@ -53,6 +57,13 @@ interface TokenBurnState {
   setOptimisedPrompt: (p: string | null) => void;
   acceptOptimisation: () => void;
   revertOptimisation: () => void;
+
+  setAbMode: (v: boolean) => void;
+  setPromptB: (p: string) => void;
+  /** Swap A and B. */
+  swapAB: () => void;
+  /** Promote B to A, clear B, exit A/B mode. */
+  acceptB: () => void;
 
   setHistory: (h: string) => void;
   setTools: (t: string[]) => void;
@@ -94,11 +105,25 @@ Q1 Sales Report:
 - Cogs: $2.1M (vs $1.8M Q4)
 - Doohickeys: $300K (vs $500K Q4)`;
 
+const DEFAULT_PROMPT_B = `You are a senior data analyst.
+
+Analyse the Q1 sales report below. Identify categories that grew, declined, or plateaued. Respond in JSON with keys: growing, declining, plateaued.
+
+Q1 Sales Report:
+- Widgets: $1.2M (vs $1.0M Q4)
+- Gadgets: $800K (vs $900K Q4)
+- Sprockets: $500K (vs $500K Q4)
+- Cogs: $2.1M (vs $1.8M Q4)
+- Doohickeys: $300K (vs $500K Q4)`;
+
 const INITIAL = {
   prompt: DEFAULT_PROMPT,
   system: "",
   showSystem: false,
   optimisedPrompt: null as string | null,
+
+  abMode: false,
+  promptB: DEFAULT_PROMPT_B,
 
   history: "",
   tools: [] as string[],
@@ -137,6 +162,12 @@ export const useTokenBurnStore = create<TokenBurnState>()(
         ),
       revertOptimisation: () => set({ optimisedPrompt: null }),
 
+      setAbMode: (abMode) => set({ abMode }),
+      setPromptB: (promptB) => set({ promptB }),
+      swapAB: () => set((s) => ({ prompt: s.promptB, promptB: s.prompt })),
+      acceptB: () =>
+        set((s) => ({ prompt: s.promptB, promptB: DEFAULT_PROMPT_B, abMode: false })),
+
       setHistory: (history) => set({ history }),
       setTools: (tools) => set({ tools }),
       addTool: () =>
@@ -174,6 +205,8 @@ export const useTokenBurnStore = create<TokenBurnState>()(
       resetPrompt: () =>
         set({
           prompt: DEFAULT_PROMPT,
+          promptB: DEFAULT_PROMPT_B,
+          abMode: false,
           system: "",
           history: "",
           tools: [],
@@ -198,6 +231,8 @@ export const useTokenBurnStore = create<TokenBurnState>()(
       // Don't persist API keys or the transient optimised prompt.
       partialize: (s) => ({
         prompt: s.prompt,
+        promptB: s.promptB,
+        abMode: s.abMode,
         system: s.system,
         showSystem: s.showSystem,
         history: s.history,

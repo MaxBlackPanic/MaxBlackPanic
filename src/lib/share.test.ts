@@ -46,4 +46,17 @@ describe("share / round-trip", () => {
     const big = { v: 1 as const, prompt: "x".repeat(20_000) };
     expect(() => encodeShare(big)).toThrow(/too large/);
   });
+
+  it("round-trips A/B compare payload", () => {
+    const p = {
+      v: 1 as const,
+      prompt: "Original prompt",
+      promptB: "Optimised prompt",
+      abMode: true,
+      tier: "batch" as const,
+    };
+    const dec = decodeShare(encodeShare(p));
+    expect(dec?.promptB).toBe("Optimised prompt");
+    expect(dec?.abMode).toBe(true);
+  });
 });
