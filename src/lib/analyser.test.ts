@@ -90,6 +90,67 @@ describe("analyser / routing", () => {
   });
 });
 
+describe("analyser / boilerplate", () => {
+  it("strips 'your task is to' and 'the following document'", () => {
+    const text =
+      "Your task is to summarise the following document. As an expert, analyse the data.";
+    const r = analysePrompt(text, 20);
+    const b = r.suggestions.find((s) => s.id === "boilerplate");
+    expect(b).toBeDefined();
+    const after = b!.apply!(text);
+    expect(after.toLowerCase()).not.toContain("your task is to");
+    expect(after.toLowerCase()).not.toContain("as an expert");
+  });
+});
+
+describe("analyser / emoji bloat", () => {
+  it("flags prompts with several emoji", () => {
+    const text = "Please review 🔥 the following 🚀 design 💡 doc 📝 and respond 🎯 quickly 🎉.";
+    const r = analysePrompt(text, 30);
+    const e = r.suggestions.find((s) => s.id === "emoji-bloat");
+    expect(e).toBeDefined();
+    const after = e!.apply!(text);
+    expect(/\p{Extended_Pictographic}/u.test(after)).toBe(false);
+  });
+
+  it("ignores emoji-free prompts", () => {
+    const r = analysePrompt("No emoji here, just text.", 10);
+    expect(r.suggestions.some((s) => s.id === "emoji-bloat")).toBe(false);
+  });
+});
+
+describe("analyser / politeness coda", () => {
+  it("flags trailing 'Thanks!' / 'Looking forward to your response'", () => {
+    const text = "Summarise the document. Looking forward to your response.";
+    const r = analysePrompt(text, 15);
+    const p = r.suggestions.find((s) => s.id === "politeness-coda");
+    expect(p).toBeDefined();
+    const after = p!.apply!(text);
+    expect(after.toLowerCase()).not.toContain("looking forward");
+  });
+});
+
+describe("analyser / preamble suppression", () => {
+  it("recommends adding a no-preamble line for JSON tasks", () => {
+    const r = analysePrompt("Return the categories as JSON.", 10);
+    expect(r.suggestions.some((s) => s.id === "preamble")).toBe(true);
+  });
+
+  it("stays quiet when the prompt already suppresses preamble", () => {
+    const r = analysePrompt("Return the categories as JSON. No preamble.", 12);
+    expect(r.suggestions.some((s) => s.id === "preamble")).toBe(false);
+  });
+});
+
+describe("analyser / emphasis stacking", () => {
+  it("flags 4+ emphasis markers in one prompt", () => {
+    const text =
+      "IMPORTANT: be precise. NOTE: use JSON. WARNING: do not hallucinate. CRITICAL: include sources. MUST: respect rate limits.";
+    const r = analysePrompt(text, 30);
+    expect(r.suggestions.some((s) => s.id === "emphasis-stacking")).toBe(true);
+  });
+});
+
 describe("analyser / suggestions sorted by savings then severity", () => {
   it("highest token saving first", () => {
     const text =

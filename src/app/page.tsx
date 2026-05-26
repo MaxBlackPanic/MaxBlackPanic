@@ -53,6 +53,8 @@ export default function Home() {
     tier,
     reasoningBudget,
     cachedInputFraction,
+    cacheWriteTokens,
+    cacheWriteTtl,
     callsPerDay,
     setCallsPerDay,
     showVolume,
@@ -134,6 +136,7 @@ export default function Home() {
         tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
       const effectiveTier: "standard" | "batch" = tier === "cached" ? "standard" : tier;
 
+      const cacheWriteForCall = tier === "cached" ? cacheWriteTokens : 0;
       const expected = computeCost(
         m,
         {
@@ -141,6 +144,8 @@ export default function Home() {
           outputTokens: out.expected,
           reasoningTokens: m.supportsReasoning ? reasoningBudget : 0,
           cachedInputTokens: cachedTokens,
+          cacheWriteTokens: cacheWriteForCall,
+          cacheWriteTtl,
         },
         effectiveTier,
       );
@@ -151,6 +156,8 @@ export default function Home() {
           outputTokens: out.low,
           reasoningTokens: m.supportsReasoning ? Math.min(reasoningBudget, 1024) : 0,
           cachedInputTokens: cachedTokens,
+          cacheWriteTokens: cacheWriteForCall,
+          cacheWriteTtl,
         },
         effectiveTier,
       );
@@ -161,6 +168,8 @@ export default function Home() {
           outputTokens: out.high,
           reasoningTokens: m.supportsReasoning ? reasoningBudget : 0,
           cachedInputTokens: cachedTokens,
+          cacheWriteTokens: cacheWriteForCall,
+          cacheWriteTtl,
         },
         effectiveTier,
       );
@@ -172,7 +181,10 @@ export default function Home() {
         outputExpected: out.expected,
         outputHigh: out.high,
         inputCost:
-          expected.inputCost + expected.cachedInputCost + expected.longContextSurchargeCost,
+          expected.inputCost +
+          expected.cachedInputCost +
+          expected.cacheWriteCost +
+          expected.longContextSurchargeCost,
         outputCost: expected.outputCost + expected.reasoningCost,
         totalCost: expected.total,
         totalCostLow: low.total,
@@ -182,7 +194,7 @@ export default function Home() {
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
       };
     },
-    [tier, reasoningBudget, cachedInputFraction],
+    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl],
   );
 
   const rows: ModelRow[] = useMemo(

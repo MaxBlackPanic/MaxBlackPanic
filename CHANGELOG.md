@@ -7,6 +7,24 @@ All notable changes to TokenBurn will be documented here. The format follows
 
 ### Added
 
+- Five new analyser detectors:
+  - **Boilerplate**: strips "your task is to", "as an expert", "the
+    following document", etc. — apply-able rewrite.
+  - **Emoji bloat**: flags 5+ emoji with a one-click strip.
+  - **Politeness coda**: drops "Thanks!", "Looking forward to your
+    response", sign-offs.
+  - **Preamble suppression**: for JSON/YAML/CSV/markdown tasks without
+    a "no preamble" instruction, recommends adding one (saves 30–80
+    output tokens per call).
+  - **Emphasis stacking**: flags 4+ "IMPORTANT:" / "NOTE:" / "MUST:"
+    markers as diluting each other.
+- Cache-write tier UI: when tier=cached, expose "tokens written this
+  call" + a 5m/1h TTL selector. Wires through to the existing
+  `cacheWriteCost` math in pricing.ts so the first-call vs subsequent-
+  call cost split is finally explicit.
+- A11y: pricing tier toggle is now a proper radiogroup; model
+  multi-select buttons announce `aria-pressed`; ModelTable wraps in a
+  named region.
 - `/forecast` page: a no-prompt-required cost sandbox for finance
   modelling. Direct inputs for tokens / call, output tokens, daily
   call volume, reasoning budget, cache hit fraction, and tier.

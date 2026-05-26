@@ -38,6 +38,9 @@ interface TokenBurnState {
   tier: Tier;
   reasoningBudget: number;
   cachedInputFraction: number;
+  /** Tokens being WRITTEN to the cache this call. Billed at base × multiplier. */
+  cacheWriteTokens: number;
+  cacheWriteTtl: "5m" | "1h";
 
   callsPerDay: number;
   showVolume: boolean;
@@ -80,6 +83,8 @@ interface TokenBurnState {
   setTier: (t: Tier) => void;
   setReasoningBudget: (n: number) => void;
   setCachedInputFraction: (f: number) => void;
+  setCacheWriteTokens: (n: number) => void;
+  setCacheWriteTtl: (ttl: "5m" | "1h") => void;
 
   setCallsPerDay: (n: number) => void;
   toggleVolume: () => void;
@@ -135,6 +140,8 @@ const INITIAL = {
   tier: "standard" as Tier,
   reasoningBudget: 0,
   cachedInputFraction: 0,
+  cacheWriteTokens: 0,
+  cacheWriteTtl: "5m" as const,
 
   callsPerDay: 1000,
   showVolume: false,
@@ -192,6 +199,8 @@ export const useTokenBurnStore = create<TokenBurnState>()(
       setTier: (tier) => set({ tier }),
       setReasoningBudget: (reasoningBudget) => set({ reasoningBudget }),
       setCachedInputFraction: (cachedInputFraction) => set({ cachedInputFraction }),
+      setCacheWriteTokens: (cacheWriteTokens) => set({ cacheWriteTokens: Math.max(0, cacheWriteTokens) }),
+      setCacheWriteTtl: (cacheWriteTtl) => set({ cacheWriteTtl }),
 
       setCallsPerDay: (callsPerDay) => set({ callsPerDay }),
       toggleVolume: () => set((s) => ({ showVolume: !s.showVolume })),
@@ -244,6 +253,8 @@ export const useTokenBurnStore = create<TokenBurnState>()(
         tier: s.tier,
         reasoningBudget: s.reasoningBudget,
         cachedInputFraction: s.cachedInputFraction,
+        cacheWriteTokens: s.cacheWriteTokens,
+        cacheWriteTtl: s.cacheWriteTtl,
         callsPerDay: s.callsPerDay,
         showVolume: s.showVolume,
         exactCountEnabled: s.exactCountEnabled,

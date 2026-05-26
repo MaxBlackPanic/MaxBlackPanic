@@ -123,7 +123,7 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="scrollbar-thin overflow-x-auto rounded-md border">
+      <div className="scrollbar-thin overflow-x-auto rounded-md border" role="region" aria-label="Model cost comparison">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>

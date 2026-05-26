@@ -18,6 +18,10 @@ export function SettingsPanel() {
     setReasoningBudget,
     cachedInputFraction,
     setCachedInputFraction,
+    cacheWriteTokens,
+    setCacheWriteTokens,
+    cacheWriteTtl,
+    setCacheWriteTtl,
     exactCountEnabled,
     setExactCountEnabled,
     anthropicApiKey,
@@ -44,11 +48,17 @@ export function SettingsPanel() {
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Pricing tier
           </div>
-          <div className="mt-2 inline-flex gap-1 rounded-md bg-muted p-1">
+          <div
+            className="mt-2 inline-flex gap-1 rounded-md bg-muted p-1"
+            role="radiogroup"
+            aria-label="Pricing tier"
+          >
             {(["standard", "batch", "cached"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTier(t)}
+                role="radio"
+                aria-checked={tier === t}
                 className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                   tier === t
                     ? "bg-background text-foreground shadow"
@@ -103,6 +113,46 @@ export function SettingsPanel() {
                 0–1. e.g. 0.9 = 90% of input is cached.
               </span>
             </div>
+          </div>
+        )}
+
+        {tier === "cached" && (
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Cache write (this call)
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                step={100}
+                value={cacheWriteTokens}
+                onChange={(e) => setCacheWriteTokens(parseInt(e.target.value || "0", 10))}
+                className="w-32"
+                aria-label="Tokens being written to the cache this call"
+              />
+              <span className="text-xs text-muted-foreground">tokens written</span>
+              <div className="inline-flex gap-1 rounded-md bg-muted p-1">
+                {(["5m", "1h"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setCacheWriteTtl(t)}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                      cacheWriteTtl === t
+                        ? "bg-background text-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-label={`Cache TTL ${t}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Anthropic charges 1.25× base input for 5-minute TTL, 2× for 1-hour. Use this for the
+              first call that populates the cache; subsequent cached-hit calls don&apos;t pay it.
+            </p>
           </div>
         )}
 
@@ -187,13 +237,18 @@ export function SettingsPanel() {
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Models compared ({selectedModelIds.length})
           </div>
-          <div className="mt-2 flex max-h-48 flex-wrap gap-1 overflow-y-auto pr-1">
+          <div
+            className="mt-2 flex max-h-48 flex-wrap gap-1 overflow-y-auto pr-1"
+            role="group"
+            aria-label="Models to include in the comparison"
+          >
             {MODELS.map((m) => {
               const on = selectedModelIds.includes(m.id);
               return (
                 <button
                   key={m.id}
                   onClick={() => toggleModel(m.id)}
+                  aria-pressed={on}
                   className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
                     on
                       ? "border-primary/40 bg-primary/15 text-foreground"
