@@ -102,7 +102,19 @@ function detectVerbosity(text: string): PromptSuggestion[] {
       apply: (t) => {
         let out = t;
         for (const { re, replacement } of FILLER_PHRASES) out = out.replace(re, replacement);
-        return out.replace(/[ \t]{2,}/g, " ").replace(/^\s+|\s+$/gm, "").trim();
+        // Tidy: collapse runs of inline spaces (preserving newlines), fix dangling
+        // punctuation, drop trailing whitespace per line, and capitalise the first
+        // letter of each sentence that the removal left lowercased.
+        out = out
+          .replace(/[ \t]{2,}/g, " ")
+          .replace(/[ \t]+([.,;:!?])/g, "$1")
+          .replace(/([.,;:!?])\s+(?=[.,;:!?])/g, "$1")
+          .replace(/\b([.,])\s+only\b/gi, " only$1")
+          .replace(/[ \t]+$/gm, "")
+          .replace(/^[ \t]+/gm, (m, _o, s) => (s.endsWith("\n") ? m : ""));
+        // Capitalise sentence starts after punctuation + space.
+        out = out.replace(/(^|[.!?]\s+)([a-z])/g, (_m, p, c) => p + c.toUpperCase());
+        return out.trim();
       },
       category: "verbosity",
     },
@@ -113,7 +125,7 @@ function detectVerbosity(text: string): PromptSuggestion[] {
 
 const REDUNDANT_DIRECTIVES = [
   { name: "be concise", re: /\b(be\s+concise|keep\s+it\s+short|stay\s+brief|be\s+brief)\b/gi },
-  { name: "respond in JSON", re: /\b(respond|return|reply|output)\s+(only\s+)?(in\s+)?(json|valid\s+json)\b/gi },
+  { name: "respond in JSON", re: /\b(respond|return|reply|output)\s+(only\s+)?(in\s+)?(json|valid\s+json)(\s+only)?\s*\.?/gi },
   { name: "do not explain", re: /\b(do\s+not|don['’]t)\s+(explain|apolog(ize|ise)|preamble)\b/gi },
   { name: "step by step", re: /\bstep[- ]?by[- ]?step\b/gi },
   { name: "no markdown", re: /\b(no|without|do\s+not\s+use)\s+markdown\b/gi },
@@ -246,6 +258,151 @@ function detectExamples(text: string): PromptSuggestion[] {
       confidence: "medium",
       estimatedTokenSaving: Math.round((totalExamples - 2) * 80),
       category: "examples",
+    },
+  ];
+}
+
+// ----- Boilerplate / "the following X" -------------------------------------
+
+const BOILERPLATE_PHRASES: Array<{ re: RegExp; replacement: string; tokens: number }> = [
+  { re: /\bthe\s+following\s+(text|content|document|input|data|message|prompt)\s*[:.,]?/gi, replacement: "below:", tokens: 3 },
+  { re: /\bas\s+(an|the)\s+(expert|professional|experienced)\b[,]?\s*/gi, replacement: "", tokens: 3 },
+  { re: /\byour\s+task\s+is\s+to\s+/gi, replacement: "", tokens: 4 },
+  { re: /\bthe\s+goal\s+is\s+to\s+/gi, replacement: "", tokens: 4 },
+  { re: /\bbefore\s+(you\s+)?(begin|start|respond),?\s+(please\s+)?/gi, replacement: "", tokens: 4 },
+  { re: /\bwithout\s+further\s+ado,?\s+/gi, replacement: "", tokens: 3 },
+];
+
+function detectBoilerplate(text: string): PromptSuggestion[] {
+  const hits: Array<{ start: number; end: number; tokens: number }> = [];
+  for (const { re, tokens } of BOILERPLATE_PHRASES) {
+    for (const m of text.matchAll(re)) {
+      hits.push({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, tokens });
+    }
+  }
+  if (hits.length === 0) return [];
+  const total = hits.reduce((a, h) => a + h.tokens, 0);
+  return [
+    {
+      id: "boilerplate",
+      title: `Strip ${hits.length} boilerplate ${hits.length === 1 ? "phrase" : "phrases"}`,
+      detail:
+        "Phrases like “your task is to”, “as an expert”, or “the following document” add tokens without adding instruction. The model already knows it has a task and what's adjacent in the prompt.",
+      severity: total > 15 ? "medium" : "low",
+      confidence: "high",
+      estimatedTokenSaving: total,
+      ranges: hits.map((h) => ({ start: h.start, end: h.end, hint: `−${h.tokens} tokens` })),
+      apply: (t) => {
+        let out = t;
+        for (const { re, replacement } of BOILERPLATE_PHRASES) out = out.replace(re, replacement);
+        return out.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+$/gm, "").trim();
+      },
+      category: "verbosity",
+    },
+  ];
+}
+
+// ----- Preamble suppression detector ---------------------------------------
+
+function detectPreambleSuppression(text: string): PromptSuggestion[] {
+  // If the prompt has no explicit "don't preamble" instruction AND it looks
+  // like a JSON / structured-output task, flag it.
+  const wantsStructured = /\b(json|yaml|csv|markdown|html|xml)\b/i.test(text);
+  const alreadySuppressed = /\b(no\s+preamble|do\s+not\s+explain|without\s+(any\s+)?(preamble|explanation|introduction|apologi))\b/i.test(text);
+  if (!wantsStructured || alreadySuppressed) return [];
+  return [
+    {
+      id: "preamble",
+      title: "Suppress model preamble",
+      detail:
+        "Structured-output tasks regularly burn 30–80 output tokens on “Sure, here you go:” style preamble. Add: “Respond with the JSON only, no preamble.”",
+      severity: "medium",
+      confidence: "medium",
+      estimatedTokenSaving: 0,
+      category: "output",
+    },
+  ];
+}
+
+// ----- Emoji density -------------------------------------------------------
+
+function detectEmojiBloat(text: string): PromptSuggestion[] {
+  const emojiRe = /\p{Extended_Pictographic}/gu;
+  const matches = Array.from(text.matchAll(emojiRe));
+  if (matches.length < 5) return [];
+  const density = matches.length / Math.max(1, text.length);
+  if (density < 0.005) return [];
+  // Each emoji is typically 1–3 BPE tokens. Estimate 2 tokens each.
+  const saving = matches.length * 2;
+  return [
+    {
+      id: "emoji-bloat",
+      title: `Remove ${matches.length} emoji`,
+      detail:
+        "Each emoji takes 1–3 tokens in most BPE tokenisers. Emoji rarely change task quality — strip them from prompts (keep them in OUTPUT instructions only if the deliverable demands them).",
+      severity: saving > 30 ? "medium" : "low",
+      confidence: "high",
+      estimatedTokenSaving: saving,
+      apply: (t) => t.replace(emojiRe, "").replace(/[ \t]{2,}/g, " ").trim(),
+      category: "verbosity",
+    },
+  ];
+}
+
+// ----- Politeness coda -----------------------------------------------------
+
+const POLITENESS_CODAS: RegExp[] = [
+  /\bthank(s|\s+you)(\s+(very\s+much|so\s+much|in\s+advance))?\s*[!.]?$/im,
+  /\b(looking\s+forward\s+to\s+(your\s+)?(response|reply)|i\s+appreciate\s+(your|the)\s+(help|assistance))\s*[!.]?$/im,
+  /\bbest\s+(regards|wishes)\s*,?\s*$/im,
+  /\bcheers\s*[!.]?$/im,
+];
+
+function detectPolitenessCoda(text: string): PromptSuggestion[] {
+  const hits: Array<{ start: number; end: number }> = [];
+  for (const re of POLITENESS_CODAS) {
+    const m = text.match(re);
+    if (m && typeof m.index === "number") {
+      hits.push({ start: m.index, end: m.index + m[0].length });
+    }
+  }
+  if (hits.length === 0) return [];
+  return [
+    {
+      id: "politeness-coda",
+      title: "Drop closing politeness",
+      detail:
+        "“Thanks!”, “Looking forward to your response”, sign-offs etc. cost tokens and don't shape the answer. Models are well-trained on terse prompts.",
+      severity: "low",
+      confidence: "high",
+      estimatedTokenSaving: hits.length * 4,
+      ranges: hits,
+      apply: (t) => {
+        let out = t;
+        for (const re of POLITENESS_CODAS) out = out.replace(re, "");
+        return out.trimEnd();
+      },
+      category: "verbosity",
+    },
+  ];
+}
+
+// ----- Repeated emphasis stacking -----------------------------------------
+
+function detectEmphasisStacking(text: string): PromptSuggestion[] {
+  const markers = (text.match(/\b(important|note|warning|critical|attention|must)\s*:/gi) || [])
+    .length;
+  if (markers < 4) return [];
+  return [
+    {
+      id: "emphasis-stacking",
+      title: `${markers} stacked emphasis markers`,
+      detail:
+        "Many “IMPORTANT:” / “NOTE:” / “MUST:” markers in one prompt dilute each other. Keep at most two; promote the rest into the prose or drop them.",
+      severity: "low",
+      confidence: "medium",
+      estimatedTokenSaving: Math.max(0, markers - 2) * 2,
+      category: "redundancy",
     },
   ];
 }
@@ -406,11 +563,16 @@ export function analysePrompt(text: string, inputTokens: number): AnalysisResult
   const taskClass = classifyForRouting(text);
   const suggestions: PromptSuggestion[] = [
     ...detectVerbosity(text),
+    ...detectBoilerplate(text),
     ...detectRedundancy(text),
     ...detectStructure(text, inputTokens),
     ...detectWhitespace(text),
+    ...detectEmojiBloat(text),
+    ...detectPolitenessCoda(text),
+    ...detectEmphasisStacking(text),
     ...detectExamples(text),
     ...detectOutputCap(text),
+    ...detectPreambleSuppression(text),
     ...detectCacheOpportunity(text, inputTokens),
     ...detectCompression(text, inputTokens),
     ...detectRouting(taskClass),

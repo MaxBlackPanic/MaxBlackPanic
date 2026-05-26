@@ -43,7 +43,7 @@ const TASK_KEYWORDS: Array<{ class: TaskClass; words: RegExp }> = [
   { class: "summarisation", words: /\b(summari[sz]e|tl;?dr|in\s+a\s+sentence|abstract\s+of|key\s+points)\b/i },
   { class: "code", words: /\b(write|implement|refactor|debug|fix)\b.*\b(code|function|class|component|module|script|test)\b/i },
   { class: "reasoning", words: /\b(reason|prove|step[- ]?by[- ]?step|chain[- ]?of[- ]?thought|derive|analy[sz]e|why)\b/i },
-  { class: "creative", words: /\b(write\s+a\s+(poem|story|essay|article)|creative|fiction|narrative|in\s+the\s+style\s+of)\b/i },
+  { class: "creative", words: /\b(write\s+(a|an)\s+(\w+\s+)?(poem|story|essay|article|novel|script)|creative|fiction|narrative|in\s+the\s+style\s+of)\b/i },
   { class: "agentic", words: /\b(tool\s*call|function\s*call|agent|planner|use\s+the\s+(api|browser|terminal)|multi[- ]?step\s+plan)\b/i },
 ];
 

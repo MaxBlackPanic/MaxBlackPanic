@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --warn: 38 92% 50%;
+    --warn-foreground: 222 47% 11%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 24 95% 53%;
+    --radius: 0.5rem;
+    --font-sans: ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 24 95% 60%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 14%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 73% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --warn: 38 92% 55%;
+    --warn-foreground: 222 47% 11%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 24 95% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom utility classes */
+.tokenburn-flame {
+  background: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #b91c1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Inline efficiency-issue underline in the editor (matches Monaco class names). */
+.tb-issue-verbosity {
+  background: linear-gradient(transparent 95%, rgba(249, 115, 22, 0.45) 0);
+}
+.tb-issue-redundancy {
+  background: linear-gradient(transparent 95%, rgba(239, 68, 68, 0.45) 0);
+}
+.tb-issue-whitespace {
+  background: linear-gradient(transparent 95%, rgba(59, 130, 246, 0.35) 0);
+}
+.tb-issue-cache {
+  background: linear-gradient(transparent 95%, rgba(16, 185, 129, 0.35) 0);
+}
+
+/* Hide the scrollbar in the model table on Webkit while keeping scroll. */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
