@@ -1,5 +1,7 @@
 # TokenBurn
 
+[![CI](https://github.com/MaxBlackPanic/MaxBlackPanic/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxBlackPanic/MaxBlackPanic/actions/workflows/ci.yml)
+
 **TokenBurn** is an AI token-burn calculator that:
 
 - predicts how many tokens a given prompt will consume across every major frontier model,
@@ -40,12 +42,39 @@ paste a session-scoped API key.
 
 ## Deploying to Vercel
 
-The repo includes `vercel.json` and is ready to deploy with the default Next.js preset:
+The repo includes `vercel.json` and is ready to deploy with the default Next.js preset.
+
+### One-time setup
+
+1. `npm i -g vercel` (or use `npx vercel ...` ad-hoc).
+2. `vercel login` and authenticate with the account that should own the deployment.
+3. From the repo root: `vercel link` — answer **N** when asked if an existing project exists, then accept the defaults for framework (Next.js), root directory (`./`), build command (`next build`), output directory (default).
+
+### Deploy
 
 ```bash
-npx vercel        # link + deploy
-npx vercel --prod # production
+vercel              # preview deploy (gets a unique URL)
+vercel --prod       # production deploy (gets your project's main URL)
 ```
+
+No environment variables are required — TokenBurn has zero server-side secrets. All tokenisation runs in the browser; vendor count-token API keys (Anthropic, Google) are entered by the user at runtime and held in session memory only.
+
+### Auto-deploy from GitHub
+
+Connect the repo via the Vercel dashboard (Add New… → Project → Import Git Repository). Once linked:
+
+- Every push to `main` triggers a production deploy.
+- Every PR triggers a preview deploy with a unique URL Vercel comments on the PR.
+
+The CI workflow in `.github/workflows/ci.yml` runs typecheck + lint + tests + build on every PR independently of Vercel, so a broken PR is caught before review even loads.
+
+### What CI checks
+
+- `npm run typecheck` — strict TypeScript compilation.
+- `npm run lint` — Next.js ESLint rules.
+- `npm test` — 61 vitest cases (tokeniser, pricing math, analyser, exporter, share encoder).
+- `npm run build` — full production build with telemetry disabled.
+- Output verification — confirms `.next/BUILD_ID` exists.
 
 ## How tokenisation works
 
