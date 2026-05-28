@@ -53,6 +53,9 @@ interface TokenBurnState {
 
   darkMode: boolean;
 
+  /** First-visit orientation hint state. */
+  orientationDismissed: boolean;
+
   setPrompt: (p: string) => void;
   setSystem: (s: string) => void;
   setShowSystem: (v: boolean) => void;
@@ -94,6 +97,9 @@ interface TokenBurnState {
   setGeminiApiKey: (k: string) => void;
 
   toggleDarkMode: () => void;
+
+  dismissOrientation: () => void;
+  showOrientation: () => void;
 
   /** Reset the prompt/system/attachments to the seeded defaults. */
   resetPrompt: () => void;
@@ -151,6 +157,7 @@ const INITIAL = {
   geminiApiKey: "",
 
   darkMode: true,
+  orientationDismissed: false,
 };
 
 export const useTokenBurnStore = create<TokenBurnState>()(
@@ -211,6 +218,9 @@ export const useTokenBurnStore = create<TokenBurnState>()(
 
       toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
 
+      dismissOrientation: () => set({ orientationDismissed: true }),
+      showOrientation: () => set({ orientationDismissed: false }),
+
       resetPrompt: () =>
         set({
           prompt: DEFAULT_PROMPT,
@@ -259,6 +269,7 @@ export const useTokenBurnStore = create<TokenBurnState>()(
         showVolume: s.showVolume,
         exactCountEnabled: s.exactCountEnabled,
         darkMode: s.darkMode,
+        orientationDismissed: s.orientationDismissed,
       }),
       version: 1,
     },

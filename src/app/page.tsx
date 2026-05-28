@@ -12,6 +12,7 @@ import { DiffView } from "@/components/DiffView";
 import { VolumeCalculator } from "@/components/VolumeCalculator";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
+import { OrientationCard } from "@/components/OrientationCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -340,6 +341,7 @@ export default function Home() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* LEFT: editor + system + diff */}
           <div className="space-y-4">
+            <OrientationCard />
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">

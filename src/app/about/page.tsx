@@ -1,7 +1,13 @@
+"use client";
+
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useTokenBurnStore } from "@/lib/store";
 
 export default function AboutPage() {
+  const showOrientation = useTokenBurnStore((s) => s.showOrientation);
   return (
     <div className="min-h-screen">
       <Header />
@@ -55,6 +61,14 @@ export default function AboutPage() {
             <p className="text-muted-foreground">
               MIT. See <code>CONTRIBUTING</code> in the README for how to bump prices or add
               models.
+            </p>
+
+            <h3 className="font-semibold">Lost? Replay the orientation hints</h3>
+            <p className="text-muted-foreground">
+              <Button asChild variant="link" size="sm" className="h-auto p-0 text-sm" onClick={showOrientation}>
+                <Link href="/">Show me around again</Link>
+              </Button>{" "}
+              — restores the welcome card on the main analyser page.
             </p>
           </CardContent>
         </Card>
