@@ -24,25 +24,41 @@ export function Header() {
       </Link>
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/" className="gap-1.5">
+          <Link
+            href="/"
+            className="gap-1.5"
+            title="Paste a prompt and see token counts, cost per model, and one-click rewrite suggestions."
+          >
             <Home className="h-3.5 w-3.5" />
             Analyser
           </Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/forecast" className="gap-1.5">
+          <Link
+            href="/forecast"
+            className="gap-1.5"
+            title="No-prompt cost sandbox. Punch in token counts and call volume to sketch monthly / annual budgets."
+          >
             <Calculator className="h-3.5 w-3.5" />
             Forecast
           </Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/calibration" className="gap-1.5">
+          <Link
+            href="/calibration"
+            className="gap-1.5"
+            title="Cross-check the empirical Anthropic / Gemini token counts against the vendor APIs using your own key."
+          >
             <BarChart3 className="h-3.5 w-3.5" />
             Calibration
           </Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/about" className="gap-1.5">
+          <Link
+            href="/about"
+            className="gap-1.5"
+            title="What TokenBurn does, how the tokenisers are calibrated, and the privacy guarantees."
+          >
             <BookOpen className="h-3.5 w-3.5" />
             About
           </Link>
