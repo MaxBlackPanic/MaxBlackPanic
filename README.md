@@ -76,6 +76,146 @@ The CI workflow in `.github/workflows/ci.yml` runs typecheck + lint + tests + bu
 - `npm run build` — full production build with telemetry disabled.
 - Output verification — confirms `.next/BUILD_ID` exists.
 
+## Phase 2 — output cost & multi-turn cost-intelligence
+
+Phase 2 extends TokenBurn from an input-cost calculator into a complete
+cost-intelligence tool. Output is billed 5-6× the input rate on every
+current frontier model, so getting output prediction right matters far more
+than getting input right.
+
+### Cascading output predictor
+
+`src/lib/outputPredictor.ts` runs three tiers in order — first applicable
+tier wins. Every prediction carries the tier name in the UI so you see
+which signal fired.
+
+1. **Deterministic** — explicit `max_tokens=N` (hard ceiling), "in N words"
+   (×1.33), "in N sentences" (×25), "one sentence" / TL;DR (tight band).
+2. **Structural** — detected output shape: list of N items, table R×C cells,
+   JSON object with named keys, email / letter, report with named sections,
+   function / function+tests / class.
+3. **Archetype** — rule-based classifier into 9 task classes (classification,
+   extraction, summarisation, QA, open generation, code, translation,
+   rewriting, agentic), each with a calibrated output/input ratio + log-normal
+   sigma + minimum-expected floor. Apply optional per-user correction factor
+   from the self-calibration loop.
+
+Output is always a log-normal-distributed low / expected / high triple.
+Archetype ratios live in `src/lib/outputArchetypes.ts` and are exposed for
+the calibration loop to override.
+
+### Echo Probe — "spend cents to predict dollars"
+
+`/` → **Echo Probe** card. Sends your prompt to a cheap oracle (Claude Haiku
+4.5 by default; Gemini 3 Flash or GPT-5.4 Nano as alternates) with a system
+prompt that forbids answering and requires:
+
+```
+ESTIMATE: <int>
+LOW: <int>
+HIGH: <int>
+OUTLINE:
+- section 1
+- section 2
+- ...
+```
+
+Probe responses are capped at 180 tokens so the call costs ~$0.001 on Haiku
+for a typical prompt. Results are cached by SHA-256 fingerprint of
+`(oracle_id + prompt)` in `localStorage` (FIFO eviction at 100 entries), so
+repeated probes are free.
+
+The probe **never runs without an explicit click** and the prompt only
+travels when you click. API keys stay in session memory only.
+
+### Self-calibration feedback loop
+
+`/calibration` → **Self-calibration** card. Two ingest paths:
+
+1. **Paste box** — paste a usage object from your API response. Auto-detects
+   OpenAI (`usage.prompt_tokens`/`completion_tokens`), Anthropic
+   (`usage.input_tokens`/`output_tokens`), and Google
+   (`usageMetadata.promptTokenCount`/`candidatesTokenCount`). Accepts
+   arrays for batched ingestion.
+2. **File upload** — drop a JSON array of any of the above.
+3. **Optional proxy mode** (you build this) — see "Proxy mode" below.
+
+Samples live in **IndexedDB** locally (DB `tokenburn-calibration`, store
+`samples`). Nothing leaves the browser. Per-archetype median correction
+factors are fitted once you have ≥5 samples per class; median is used (not
+mean) so a few outliers don't skew the calibration. Confidence saturates at
+1.0 after 30 total samples. The fitted factors persist in `localStorage`
+under `tokenburn:v1` and are automatically applied to all future predictions
+on the main analyser page.
+
+Export the calibrated model as JSON for sharing with your finance team.
+
+### Proxy mode (optional, ~30 LoC)
+
+To stop pasting usage objects manually, route your API calls through a tiny
+local proxy that logs `(prompt, model, input_tokens, output_tokens)` and
+serves up a JSON file you can drop into the Self-Calibration upload box.
+
+A minimal Express version:
+
+```js
+// proxy.js — run with: node proxy.js
+import express from "express";
+import fs from "node:fs";
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+const log = fs.createWriteStream("tokenburn-usage.jsonl", { flags: "a" });
+
+app.post("/v1/messages", async (req, res) => {
+  const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { ...req.headers, host: "api.anthropic.com" },
+    body: JSON.stringify(req.body),
+  });
+  const json = await upstream.json();
+  log.write(JSON.stringify({
+    model: req.body.model,
+    prompt: req.body.messages?.[0]?.content,
+    usage: json.usage,
+  }) + "\n");
+  res.status(upstream.status).json(json);
+});
+app.listen(8787);
+```
+
+Then point your client at `http://localhost:8787` instead of
+`https://api.anthropic.com`. Convert `tokenburn-usage.jsonl` to a JSON
+array (`[ ... ]`) before uploading.
+
+### Session simulator
+
+`/session` → models multi-turn conversations where context compounds. Each
+turn re-bills the full accumulated context as input. Compares
+**without caching** vs **with caching (5m or 1h TTL)** side-by-side and
+plots cumulative spend across turns. Marks the break-even turn with a
+warn-coloured reference line.
+
+Four presets: coding agent (25 turns), long research conversation (30
+turns), document QA over large corpus (1 huge initial + 10 Q/A), customer
+support thread (8 turns). Editable per-turn input/output. JSON export.
+
+### Reasoning tokens
+
+When the cascading predictor classifies a prompt as `code` or `agentic`
+and you haven't set a Reasoning budget, the main page shows a warn-coloured
+"reasoning likely — budget not set" hint. Reasoning tokens are billed at the
+OUTPUT rate on every model that supports extended thinking. Set the budget
+in Settings → Reasoning Budget; it's modelled as a separate **Reasoning**
+segment in the stacked cost waterfall.
+
+### Cost waterfall
+
+The main page's chart is a six-segment stacked bar — billed input, cached
+input, cache write, long-context surcharge, output, reasoning — so the
+dominance of output over input is visually obvious for almost every prompt.
+The Model comparison table also gains an **Out %** column showing
+`output_cost / total_cost` with a green / warn / destructive progress bar.
+
 ## How tokenisation works
 
 | Vendor | Method | Confidence |

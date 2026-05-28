@@ -13,6 +13,7 @@ import { VolumeCalculator } from "@/components/VolumeCalculator";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { OrientationCard } from "@/components/OrientationCard";
+import { EchoProbe } from "@/components/EchoProbe";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export default function Home() {
     setCallsPerDay,
     showVolume,
     darkMode,
+    correctionFactors,
   } = useTokenBurnStore();
 
   // Sync html.dark class with the store.
@@ -132,7 +134,7 @@ export default function Home() {
   const buildRow = useCallback(
     (m: typeof MODELS[number], pInput: typeof promptInput, userText: string): ModelRow => {
       const tokens = countPromptTokens(pInput, m);
-      const out = predictOutput(tokens.total, userText, m);
+      const out = predictOutput(tokens.total, userText, m, { correctionFactors });
       const cachedTokens =
         tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
       const effectiveTier: "standard" | "batch" = tier === "cached" ? "standard" : tier;
@@ -175,6 +177,8 @@ export default function Home() {
         effectiveTier,
       );
 
+      const outputBucket = expected.outputCost + expected.reasoningCost;
+      const total = expected.total;
       return {
         model: m,
         inputTokens: tokens.total,
@@ -186,16 +190,30 @@ export default function Home() {
           expected.cachedInputCost +
           expected.cacheWriteCost +
           expected.longContextSurchargeCost,
-        outputCost: expected.outputCost + expected.reasoningCost,
-        totalCost: expected.total,
+        outputCost: outputBucket,
+        totalCost: total,
         totalCostLow: low.total,
         totalCostHigh: high.total,
         contextUtilisation: tokens.total / m.contextWindow,
         tokenConfidence: tokens.confidence,
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
+        costBuckets: {
+          billedInput: expected.inputCost,
+          cachedInput: expected.cachedInputCost,
+          cacheWrite: expected.cacheWriteCost,
+          longContextSurcharge: expected.longContextSurchargeCost,
+          visibleOutput: expected.outputCost,
+          reasoning: expected.reasoningCost,
+        },
+        outputShare: total > 0 ? outputBucket / total : 0,
+        prediction: {
+          tier: out.tier,
+          archetype: out.archetype,
+          rationale: out.rationale,
+        },
       };
     },
-    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl],
+    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl, correctionFactors],
   );
 
   const rows: ModelRow[] = useMemo(
@@ -352,6 +370,27 @@ export default function Home() {
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {formatTokens(liveTokenCount)} tokens
                   </Badge>
+                  {rows[0]?.prediction && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px]"
+                      title={rows[0].prediction.rationale}
+                    >
+                      output: {rows[0].prediction.tier}
+                      {rows[0].prediction.archetype ? ` · ${rows[0].prediction.archetype}` : ""}
+                    </Badge>
+                  )}
+                  {(rows[0]?.prediction?.archetype === "code" ||
+                    rows[0]?.prediction?.archetype === "agentic") &&
+                    reasoningBudget === 0 && (
+                      <Badge
+                        variant="warn"
+                        className="text-[10px]"
+                        title="Reasoning tokens are billed at the OUTPUT rate and can exceed the visible answer in volume. Set a Reasoning budget in the Settings panel."
+                      >
+                        reasoning likely — budget not set
+                      </Badge>
+                    )}
                   {analysis.taskClass && (
                     <Badge variant="outline" className="text-[10px]">
                       task: {analysis.taskClass}
@@ -466,6 +505,14 @@ export default function Home() {
                 afterCost={abTotals.bCost}
                 onAccept={acceptB}
                 onRevert={() => setAbMode(false)}
+              />
+            )}
+
+            {!abMode && (
+              <EchoProbe
+                prompt={prompt}
+                localPredictedOutput={rows[0]?.outputExpected ?? 0}
+                localProjectedCost={rows[0]?.totalCost ?? 0}
               />
             )}
 

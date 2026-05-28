@@ -17,15 +17,39 @@ interface Props {
   rows: ModelRow[];
 }
 
+const CATEGORIES = [
+  { key: "billedInput", name: "Billed input", color: "hsl(24 95% 53%)" },
+  { key: "cachedInput", name: "Cached input", color: "hsl(38 92% 50%)" },
+  { key: "cacheWrite", name: "Cache write", color: "hsl(45 100% 70%)" },
+  { key: "longContextSurcharge", name: "Long-ctx surcharge", color: "hsl(280 70% 55%)" },
+  { key: "visibleOutput", name: "Output", color: "hsl(0 73% 51%)" },
+  { key: "reasoning", name: "Reasoning", color: "hsl(330 80% 55%)" },
+] as const;
+
 export function CostChart({ rows }: Props) {
-  const data = rows.map((r) => ({
-    name: r.model.label,
-    input: Number(r.inputCost.toFixed(6)),
-    output: Number(r.outputCost.toFixed(6)),
-  }));
+  const data = rows.map((r) => {
+    const b = r.costBuckets ?? {
+      // Back-compat: distribute the rolled-up totals if buckets weren't provided.
+      billedInput: r.inputCost,
+      cachedInput: 0,
+      cacheWrite: 0,
+      longContextSurcharge: 0,
+      visibleOutput: r.outputCost,
+      reasoning: 0,
+    };
+    return {
+      name: r.model.label,
+      billedInput: Number(b.billedInput.toFixed(6)),
+      cachedInput: Number(b.cachedInput.toFixed(6)),
+      cacheWrite: Number(b.cacheWrite.toFixed(6)),
+      longContextSurcharge: Number(b.longContextSurcharge.toFixed(6)),
+      visibleOutput: Number(b.visibleOutput.toFixed(6)),
+      reasoning: Number(b.reasoning.toFixed(6)),
+    };
+  });
 
   return (
-    <div className="h-72 w-full">
+    <div className="h-80 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 40 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -50,11 +74,12 @@ export function CostChart({ rows }: Props) {
               color: "hsl(var(--popover-foreground))",
               fontSize: 12,
             }}
-            formatter={(v: number) => formatUSD(v)}
+            formatter={(v: number, name: string) => [formatUSD(v), name]}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="input" stackId="cost" fill="hsl(24 95% 53%)" name="Input" />
-          <Bar dataKey="output" stackId="cost" fill="hsl(0 73% 51%)" name="Output" />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {CATEGORIES.map((c) => (
+            <Bar key={c.key} dataKey={c.key} stackId="cost" fill={c.color} name={c.name} />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>

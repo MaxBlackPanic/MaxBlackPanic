@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_COMPARE_IDS } from "./models";
 import type { Tier } from "./pricing";
+import type { Archetype } from "./outputArchetypes";
 
 export interface ImageAttachment {
   id: string;
@@ -56,6 +57,9 @@ interface TokenBurnState {
   /** First-visit orientation hint state. */
   orientationDismissed: boolean;
 
+  /** Per-archetype calibration correction factors (refreshed by /calibration). */
+  correctionFactors: Partial<Record<Archetype, number>>;
+
   setPrompt: (p: string) => void;
   setSystem: (s: string) => void;
   setShowSystem: (v: boolean) => void;
@@ -100,6 +104,8 @@ interface TokenBurnState {
 
   dismissOrientation: () => void;
   showOrientation: () => void;
+
+  setCorrectionFactors: (f: Partial<Record<Archetype, number>>) => void;
 
   /** Reset the prompt/system/attachments to the seeded defaults. */
   resetPrompt: () => void;
@@ -158,6 +164,7 @@ const INITIAL = {
 
   darkMode: true,
   orientationDismissed: false,
+  correctionFactors: {} as Partial<Record<Archetype, number>>,
 };
 
 export const useTokenBurnStore = create<TokenBurnState>()(
@@ -221,6 +228,8 @@ export const useTokenBurnStore = create<TokenBurnState>()(
       dismissOrientation: () => set({ orientationDismissed: true }),
       showOrientation: () => set({ orientationDismissed: false }),
 
+      setCorrectionFactors: (correctionFactors) => set({ correctionFactors }),
+
       resetPrompt: () =>
         set({
           prompt: DEFAULT_PROMPT,
@@ -270,6 +279,7 @@ export const useTokenBurnStore = create<TokenBurnState>()(
         exactCountEnabled: s.exactCountEnabled,
         darkMode: s.darkMode,
         orientationDismissed: s.orientationDismissed,
+        correctionFactors: s.correctionFactors,
       }),
       version: 1,
     },

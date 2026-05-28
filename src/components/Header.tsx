@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Moon, Sun, BookOpen, BarChart3, Calculator, Home } from "lucide-react";
+import { Flame, Moon, Sun, BookOpen, BarChart3, Calculator, Home, Workflow } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTokenBurnStore } from "@/lib/store";
@@ -41,6 +41,16 @@ export function Header() {
           >
             <Calculator className="h-3.5 w-3.5" />
             Forecast
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link
+            href="/session"
+            className="gap-1.5"
+            title="Multi-turn session simulator. Models cumulative context-compounding cost with and without prompt caching."
+          >
+            <Workflow className="h-3.5 w-3.5" />
+            Session
           </Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
