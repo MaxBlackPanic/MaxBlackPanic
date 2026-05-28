@@ -1,112 +1,306 @@
 /**
- * Output token prediction. Inherently lossy — we always return a low/expected/high range.
+ * Cascading output predictor.
  *
- * Strategy:
- *  1. If the prompt declares an explicit max_tokens / word count / sentence count,
- *     anchor expected to that.
- *  2. Otherwise classify the task and apply a length-scale heuristic:
- *       classification : 0.1 * input
- *       extraction     : 0.3 * input
- *       summarisation  : 0.4 * input
- *       reasoning      : 1.2 * input
- *       code           : 1.5 * input
- *       creative       : 2.0 * input
- *       agentic/general: 1.0 * input
- *  3. Detect length cues: "brief"/"one sentence" → shrink; "comprehensive"/"detailed" → grow.
- *  4. Range = expected × {0.5, 1, 2} clamped to model max_output.
+ * Three tiers, applied in order. The first tier that yields a confident
+ * estimate is used. Every prediction carries metadata about which tier
+ * produced it so the UI can show confidence.
+ *
+ *   Tier 1 — deterministic: explicit max_tokens / word count / sentence
+ *     count / "brief" / "comprehensive" / "one line".
+ *   Tier 2 — structural: detected output shape — JSON schema, table of
+ *     stated dimensions, numbered list of N items, code function, email,
+ *     report with named sections.
+ *   Tier 3 — archetype: rule-based classifier into one of 9 task classes
+ *     and a calibrated output/input expansion ratio per class.
+ *
+ * Output is always a low/expected/high triple modelled as a log-normal
+ * distribution.
  */
 
 import type { ModelInfo, TaskClass } from "./models";
+import { ARCHETYPE_DEFAULTS, classify, type Archetype, type ArchetypeConfig } from "./outputArchetypes";
+
+export type PredictionTier = "deterministic" | "structural" | "archetype";
 
 export interface OutputPrediction {
   low: number;
   expected: number;
   high: number;
+  tier: PredictionTier;
+  archetype?: Archetype;
+  /** Log-normal sigma used to derive the band. */
+  sigma: number;
+  /** Human-readable explanation of which signal fired. */
   rationale: string;
+  /** Legacy TaskClass mapping for back-compat with the analyser router. */
   taskClass: TaskClass;
+  /** Optional per-archetype correction factor that was applied. 1.0 = none. */
+  correctionFactor?: number;
+  /** Whether the chosen archetype is reasoning-heavy (affects thinking-band UI). */
+  reasoningHeavy?: boolean;
 }
 
-const LENGTH_FACTORS: Record<TaskClass, number> = {
-  classification: 0.1,
-  extraction: 0.3,
-  summarisation: 0.4,
-  reasoning: 1.2,
-  code: 1.5,
-  creative: 2.0,
-  agentic: 1.0,
-  general: 1.0,
+const ARCHETYPE_TO_TASK: Record<Archetype, TaskClass> = {
+  classification: "classification",
+  extraction: "extraction",
+  summarisation: "summarisation",
+  qa: "general",
+  open: "creative",
+  code: "code",
+  translation: "general",
+  rewriting: "general",
+  agentic: "agentic",
 };
 
-const TASK_KEYWORDS: Array<{ class: TaskClass; words: RegExp }> = [
-  { class: "classification", words: /\b(classif(y|ier)|label|categori[sz]e|tag\s+as|which\s+of\s+the\s+following)\b/i },
-  { class: "extraction", words: /\b(extract|pull\s+out|find\s+all|list\s+the|parse\s+the|return\s+the\s+json)\b/i },
-  { class: "summarisation", words: /\b(summari[sz]e|tl;?dr|in\s+a\s+sentence|abstract\s+of|key\s+points)\b/i },
-  { class: "code", words: /\b(write|implement|refactor|debug|fix)\b.*\b(code|function|class|component|module|script|test)\b/i },
-  { class: "reasoning", words: /\b(reason|prove|step[- ]?by[- ]?step|chain[- ]?of[- ]?thought|derive|analy[sz]e|why)\b/i },
-  { class: "creative", words: /\b(write\s+(a|an)\s+(\w+\s+)?(poem|story|essay|article|novel|script)|creative|fiction|narrative|in\s+the\s+style\s+of)\b/i },
-  { class: "agentic", words: /\b(tool\s*call|function\s*call|agent|planner|use\s+the\s+(api|browser|terminal)|multi[- ]?step\s+plan)\b/i },
-];
-
-function classifyTask(prompt: string): TaskClass {
-  for (const k of TASK_KEYWORDS) {
-    if (k.words.test(prompt)) return k.class;
-  }
-  return "general";
+/** Build a log-normal-band triple from an expected value + sigma. */
+function lognormalBand(expected: number, sigma: number, cap: number): {
+  low: number;
+  expected: number;
+  high: number;
+} {
+  const exp = Math.min(Math.max(1, Math.round(expected)), cap);
+  const low = Math.max(1, Math.round(exp * Math.exp(-sigma)));
+  const high = Math.min(cap, Math.round(exp * Math.exp(sigma)));
+  return { low, expected: exp, high };
 }
 
-function detectExplicitLimit(prompt: string): number | null {
-  // max_tokens=NNNN style
+// ---------- Tier 1 — deterministic ----------------------------------
+
+function tier1Deterministic(prompt: string, model: ModelInfo): OutputPrediction | null {
+  const cap = model.maxOutputTokens;
+
+  // max_tokens=N (explicit ceiling).
   const maxTok = prompt.match(/\bmax[_\s-]?tokens?\s*[:=]\s*(\d{2,6})\b/i);
-  if (maxTok) return Math.min(parseInt(maxTok[1], 10), 200_000);
+  if (maxTok) {
+    const n = Math.min(parseInt(maxTok[1], 10), cap);
+    return {
+      ...lognormalBand(n, 0, cap),
+      low: Math.max(1, Math.round(n * 0.6)),
+      high: n, // hard ceiling
+      tier: "deterministic",
+      sigma: 0,
+      rationale: `Explicit max_tokens=${n}; treated as a hard upper bound.`,
+      taskClass: "general",
+    };
+  }
 
   // "in N words" / "no more than N words"
   const words = prompt.match(/\b(?:in|under|no more than|at most|up to)\s+(\d{2,5})\s+words?\b/i);
-  if (words) return Math.ceil(parseInt(words[1], 10) * 1.33);
+  if (words) {
+    const tokens = Math.round(parseInt(words[1], 10) * 1.33);
+    return {
+      ...lognormalBand(tokens, 0.25, cap),
+      tier: "deterministic",
+      sigma: 0.25,
+      rationale: `Word cap detected (~${words[1]} words → ~${tokens} tokens).`,
+      taskClass: "general",
+    };
+  }
 
   // "in N sentences"
   const sentences = prompt.match(/\b(?:in|under|no more than|at most)\s+(\d{1,3})\s+sentences?\b/i);
-  if (sentences) return parseInt(sentences[1], 10) * 25;
+  if (sentences) {
+    const tokens = parseInt(sentences[1], 10) * 25;
+    return {
+      ...lognormalBand(tokens, 0.3, cap),
+      tier: "deterministic",
+      sigma: 0.3,
+      rationale: `Sentence cap (~${sentences[1]} sentences × 25 tok).`,
+      taskClass: "general",
+    };
+  }
 
-  // "one sentence"
-  if (/\b(one\s+sentence|a\s+single\s+sentence|tl;?dr)\b/i.test(prompt)) return 30;
-  if (/\bone-?line\b/i.test(prompt)) return 25;
+  // "one sentence" / "one line".
+  if (/\b(one\s+sentence|a\s+single\s+sentence|tl;?dr)\b/i.test(prompt)) {
+    return {
+      ...lognormalBand(30, 0.4, cap),
+      tier: "deterministic",
+      sigma: 0.4,
+      rationale: 'Detected "one sentence" / "TL;DR" — tight band.',
+      taskClass: "general",
+    };
+  }
+  if (/\bone-?line\b/i.test(prompt)) {
+    return {
+      ...lognormalBand(25, 0.4, cap),
+      tier: "deterministic",
+      sigma: 0.4,
+      rationale: 'Detected "one line" — tight band.',
+      taskClass: "general",
+    };
+  }
 
   return null;
 }
 
-function lengthCueMultiplier(prompt: string): number {
-  let m = 1;
-  if (/\b(brief|short|concise|terse)\b/i.test(prompt)) m *= 0.5;
-  if (/\b(comprehensive|detailed|thorough|exhaustive|in[- ]?depth)\b/i.test(prompt)) m *= 2;
-  if (/\b(bullet[- ]?points?|bulleted|list\s+of)\b/i.test(prompt)) m *= 0.7;
-  return m;
+// ---------- Tier 2 — structural -------------------------------------
+
+interface StructuralEstimate {
+  expected: number;
+  sigma: number;
+  rationale: string;
+}
+
+function tier2Structural(prompt: string, model: ModelInfo): OutputPrediction | null {
+  const cap = model.maxOutputTokens;
+  const estimates: StructuralEstimate[] = [];
+
+  // Numbered/bulleted list of N items.
+  const listOfN = prompt.match(/\b(?:list\s+of|provide|return|give\s+me)\s+(\d{1,3})\s+(?:items?|examples?|points?|bullets?|reasons?|ways?|tips?|ideas?)\b/i);
+  if (listOfN) {
+    const n = parseInt(listOfN[1], 10);
+    const expected = n * 30; // 30 tokens per item, average
+    estimates.push({
+      expected,
+      sigma: 0.35,
+      rationale: `Numbered list of ${n} items × ~30 tok ≈ ${expected} tok.`,
+    });
+  }
+
+  // Table with R rows and C columns.
+  const table = prompt.match(/\btable\s+(?:with\s+)?(\d{1,4})\s+rows?\s+(?:and|by|×|x)\s+(\d{1,3})\s+columns?\b/i);
+  if (table) {
+    const r = parseInt(table[1], 10);
+    const c = parseInt(table[2], 10);
+    const expected = r * c * 8 + r * 2; // 8 tok per cell + separators
+    estimates.push({
+      expected,
+      sigma: 0.3,
+      rationale: `Table ${r}×${c} cells × 8 tok + separators.`,
+    });
+  }
+
+  // JSON object with explicit keys list.
+  const jsonKeys = prompt.match(
+    /json\s+(?:object\s+)?(?:with\s+)?(?:keys|fields|properties)[:\s]+([\w_\-, ]{3,200})/i,
+  );
+  if (jsonKeys) {
+    const keys = jsonKeys[1]
+      .split(/[,\s]+/)
+      .filter((k) => k.length > 0 && !/^(with|and|are|the)$/i.test(k));
+    if (keys.length >= 2) {
+      const expected = keys.length * 20 + 10; // 20 tok per key/value pair + braces
+      estimates.push({
+        expected,
+        sigma: 0.4,
+        rationale: `JSON object with ${keys.length} keys × ~20 tok.`,
+      });
+    }
+  }
+
+  // Email / letter.
+  if (/\b(write|draft|compose)\s+(an?\s+)?(email|letter|memo)\b/i.test(prompt)) {
+    estimates.push({
+      expected: 180,
+      sigma: 0.5,
+      rationale: "Email / letter structure (subject + greeting + body + sign-off).",
+    });
+  }
+
+  // Report with named sections.
+  const sections = prompt.match(/\b(?:with\s+)?sections?\s*[:.]?\s*([\w\s,]+)/i);
+  if (sections && /\b(report|document|brief|analysis)\b/i.test(prompt)) {
+    const sectionList = sections[1].split(/[,;]+/).filter((s) => s.trim().length > 2);
+    if (sectionList.length >= 2) {
+      const expected = sectionList.length * 150 + 50;
+      estimates.push({
+        expected,
+        sigma: 0.55,
+        rationale: `Report with ${sectionList.length} named sections × ~150 tok.`,
+      });
+    }
+  }
+
+  // Code function with tests.
+  if (/\b(function|method)\b.*\b(with|plus|and)\b.*\b(tests?|test\s+cases?)\b/i.test(prompt)) {
+    estimates.push({
+      expected: 450,
+      sigma: 0.6,
+      rationale: "Function + test cases (function ~200 tok + tests ~250 tok).",
+    });
+  } else if (/\bwrite\s+(an?|the)\s+(function|method)\b/i.test(prompt)) {
+    estimates.push({
+      expected: 200,
+      sigma: 0.55,
+      rationale: "Single function (~200 tok).",
+    });
+  } else if (/\bwrite\s+(an?|the)\s+(class|component)\b/i.test(prompt)) {
+    estimates.push({
+      expected: 500,
+      sigma: 0.7,
+      rationale: "Class / component (~500 tok).",
+    });
+  }
+
+  if (estimates.length === 0) return null;
+
+  // Multiple structural signals: sum them.
+  const expected = estimates.reduce((sum, e) => sum + e.expected, 0);
+  // Combine sigmas: take the max (variance dominates).
+  const sigma = Math.max(...estimates.map((e) => e.sigma));
+  return {
+    ...lognormalBand(expected, sigma, cap),
+    tier: "structural",
+    sigma,
+    rationale: estimates.map((e) => e.rationale).join(" + "),
+    taskClass: "general",
+  };
+}
+
+// ---------- Tier 3 — archetype --------------------------------------
+
+function tier3Archetype(
+  prompt: string,
+  inputTokens: number,
+  model: ModelInfo,
+  archetypeOverrides?: Partial<Record<Archetype, ArchetypeConfig>>,
+  correctionFactors?: Partial<Record<Archetype, number>>,
+): OutputPrediction {
+  const cap = model.maxOutputTokens;
+  const { archetype, confidence } = classify(prompt);
+  const cfg = archetypeOverrides?.[archetype] ?? ARCHETYPE_DEFAULTS[archetype];
+  const correction = correctionFactors?.[archetype] ?? 1.0;
+  // Floor at archetype.minExpected (very short prompts) AND cap at
+  // max(minExpected*5, input*3) so the ratio doesn't blow up for large
+  // inputs (e.g. refactoring a 500-token snippet doesn't predict 4000 tok).
+  const ratioRaw = inputTokens * cfg.ratio;
+  const ceiling = Math.max(cfg.minExpected * 5, inputTokens * 3);
+  // Cap the raw ratio output, then apply per-user correction last so
+  // calibration always has an effect even when the cap is binding.
+  const expected = Math.min(ceiling, Math.max(cfg.minExpected, ratioRaw)) * correction;
+
+  return {
+    ...lognormalBand(expected, cfg.sigma, cap),
+    tier: "archetype",
+    archetype,
+    sigma: cfg.sigma,
+    rationale: `Archetype=${cfg.label} (confidence ${(confidence * 100).toFixed(0)}%); ratio=${cfg.ratio}× input, floor=${cfg.minExpected}${
+      correction !== 1 ? `, calibration correction=${correction.toFixed(2)}×` : ""
+    }.`,
+    taskClass: ARCHETYPE_TO_TASK[archetype],
+    correctionFactor: correction,
+    reasoningHeavy: cfg.reasoningHeavy,
+  };
+}
+
+// ---------- Public entry point --------------------------------------
+
+export interface PredictOptions {
+  /** Per-user calibration corrections (output by the feedback loop). */
+  correctionFactors?: Partial<Record<Archetype, number>>;
+  /** Per-user overrides for the archetype ratios. */
+  archetypeOverrides?: Partial<Record<Archetype, ArchetypeConfig>>;
 }
 
 export function predictOutput(
   inputTokens: number,
   prompt: string,
   model: ModelInfo,
+  options: PredictOptions = {},
 ): OutputPrediction {
-  const taskClass = classifyTask(prompt);
-  const explicit = detectExplicitLimit(prompt);
-  const cap = model.maxOutputTokens;
-
-  let expected: number;
-  let rationale: string;
-
-  if (explicit !== null) {
-    expected = Math.min(explicit, cap);
-    rationale = `Explicit length cap detected (${explicit} tokens); using as expected output.`;
-  } else {
-    const factor = LENGTH_FACTORS[taskClass];
-    const cue = lengthCueMultiplier(prompt);
-    expected = Math.round(Math.max(50, inputTokens * factor * cue));
-    rationale = `Task=${taskClass}; factor=${factor}×; length-cue mult=${cue}×.`;
-  }
-
-  const low = Math.max(20, Math.round(expected * 0.5));
-  const high = Math.min(cap, Math.round(expected * 2));
-  const expectedClamped = Math.min(expected, cap);
-
-  return { low, expected: expectedClamped, high, rationale, taskClass };
+  const t1 = tier1Deterministic(prompt, model);
+  if (t1) return t1;
+  const t2 = tier2Structural(prompt, model);
+  if (t2) return t2;
+  return tier3Archetype(prompt, inputTokens, model, options.archetypeOverrides, options.correctionFactors);
 }
