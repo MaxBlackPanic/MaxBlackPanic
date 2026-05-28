@@ -55,20 +55,31 @@ export default function ForecastPage() {
       },
       effectiveTier,
     );
+    const outputBucket = cost.outputCost + cost.reasoningCost;
     return {
       model: m,
       inputTokens,
       outputLow: outputTokens,
       outputExpected: outputTokens,
       outputHigh: outputTokens,
-      inputCost: cost.inputCost + cost.cachedInputCost + cost.longContextSurchargeCost,
-      outputCost: cost.outputCost + cost.reasoningCost,
+      inputCost:
+        cost.inputCost + cost.cachedInputCost + cost.cacheWriteCost + cost.longContextSurchargeCost,
+      outputCost: outputBucket,
       totalCost: cost.total,
       totalCostLow: cost.total,
       totalCostHigh: cost.total,
       contextUtilisation: inputTokens / m.contextWindow,
       tokenConfidence: "exact" as const,
       tokenUncertaintyFraction: 0,
+      costBuckets: {
+        billedInput: cost.inputCost,
+        cachedInput: cost.cachedInputCost,
+        cacheWrite: cost.cacheWriteCost,
+        longContextSurcharge: cost.longContextSurchargeCost,
+        visibleOutput: cost.outputCost,
+        reasoning: cost.reasoningCost,
+      },
+      outputShare: cost.total > 0 ? outputBucket / cost.total : 0,
     };
   }
 

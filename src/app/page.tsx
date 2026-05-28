@@ -175,6 +175,8 @@ export default function Home() {
         effectiveTier,
       );
 
+      const outputBucket = expected.outputCost + expected.reasoningCost;
+      const total = expected.total;
       return {
         model: m,
         inputTokens: tokens.total,
@@ -186,13 +188,27 @@ export default function Home() {
           expected.cachedInputCost +
           expected.cacheWriteCost +
           expected.longContextSurchargeCost,
-        outputCost: expected.outputCost + expected.reasoningCost,
-        totalCost: expected.total,
+        outputCost: outputBucket,
+        totalCost: total,
         totalCostLow: low.total,
         totalCostHigh: high.total,
         contextUtilisation: tokens.total / m.contextWindow,
         tokenConfidence: tokens.confidence,
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
+        costBuckets: {
+          billedInput: expected.inputCost,
+          cachedInput: expected.cachedInputCost,
+          cacheWrite: expected.cacheWriteCost,
+          longContextSurcharge: expected.longContextSurchargeCost,
+          visibleOutput: expected.outputCost,
+          reasoning: expected.reasoningCost,
+        },
+        outputShare: total > 0 ? outputBucket / total : 0,
+        prediction: {
+          tier: out.tier,
+          archetype: out.archetype,
+          rationale: out.rationale,
+        },
       };
     },
     [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl],
@@ -352,6 +368,16 @@ export default function Home() {
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {formatTokens(liveTokenCount)} tokens
                   </Badge>
+                  {rows[0]?.prediction && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px]"
+                      title={rows[0].prediction.rationale}
+                    >
+                      output: {rows[0].prediction.tier}
+                      {rows[0].prediction.archetype ? ` · ${rows[0].prediction.archetype}` : ""}
+                    </Badge>
+                  )}
                   {analysis.taskClass && (
                     <Badge variant="outline" className="text-[10px]">
                       task: {analysis.taskClass}

@@ -15,7 +15,9 @@ export interface ModelRow {
   outputLow: number;
   outputExpected: number;
   outputHigh: number;
+  /** Rolled-up "input column" total (billed input + cached + write + long-context surcharge). */
   inputCost: number;
+  /** Rolled-up "output column" total (visible output + reasoning). */
   outputCost: number;
   totalCost: number;
   totalCostLow: number;
@@ -23,12 +25,30 @@ export interface ModelRow {
   contextUtilisation: number;
   tokenConfidence: "exact" | "high" | "medium" | "low";
   tokenUncertaintyFraction: number;
+  /** Cost breakdown buckets for the waterfall chart. */
+  costBuckets?: {
+    billedInput: number;
+    cachedInput: number;
+    cacheWrite: number;
+    longContextSurcharge: number;
+    visibleOutput: number;
+    reasoning: number;
+  };
+  /** Output's share of total cost as a 0–1 fraction. */
+  outputShare?: number;
+  /** Optional prediction metadata for the UI confidence chip. */
+  prediction?: {
+    tier: "deterministic" | "structural" | "archetype";
+    archetype?: string;
+    rationale: string;
+  };
 }
 
 type SortKey =
   | "totalCost"
   | "inputCost"
   | "outputCost"
+  | "outputShare"
   | "contextUtilisation"
   | "vendor"
   | "delta";
@@ -86,6 +106,10 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
           av = a.model.vendor;
           bv = b.model.vendor;
           break;
+        case "outputShare":
+          av = a.outputShare ?? 0;
+          bv = b.outputShare ?? 0;
+          break;
         case "delta": {
           const aB = bById.get(a.model.id);
           const bB = bById.get(b.model.id);
@@ -132,6 +156,7 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
               <th className="px-3 py-2 text-right">Output (exp)</th>
               <th className="px-3 py-2 text-right">{headerBtn("Input cost", "inputCost")}</th>
               <th className="px-3 py-2 text-right">{headerBtn("Output cost", "outputCost")}</th>
+              <th className="px-3 py-2 text-right">{headerBtn("Out %", "outputShare")}</th>
               <th className="px-3 py-2 text-right">
                 {rowsB ? headerBtn("A total", "totalCost") : headerBtn("Total / call", "totalCost")}
               </th>
@@ -201,13 +226,35 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatUSD(row.inputCost)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatUSD(row.outputCost)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {(() => {
+                      const pct = Math.round((row.outputShare ?? 0) * 100);
+                      const tone =
+                        pct >= 80 ? "bg-destructive" : pct >= 60 ? "bg-warn" : "bg-emerald-500";
+                      return (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="tabular-nums text-xs text-muted-foreground">
+                            {pct}%
+                          </span>
+                          <div className="w-12">
+                            <Progress value={pct} indicatorClassName={tone} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>{formatUSD(row.totalCost)}</span>
+                        <div className="flex flex-col items-end leading-tight">
+                          <span>{formatUSD(row.totalCost)}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
+                            ({formatUSD(row.totalCostLow)}–{formatUSD(row.totalCostHigh)})
+                          </span>
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Range: {formatUSD(row.totalCostLow)} – {formatUSD(row.totalCostHigh)} ({tier})
+                        Low / expected / high — output is range-predicted. Tier: {tier}.
                       </TooltipContent>
                     </Tooltip>
                   </td>
