@@ -61,6 +61,7 @@ export default function Home() {
     setCallsPerDay,
     showVolume,
     darkMode,
+    correctionFactors,
   } = useTokenBurnStore();
 
   // Sync html.dark class with the store.
@@ -133,7 +134,7 @@ export default function Home() {
   const buildRow = useCallback(
     (m: typeof MODELS[number], pInput: typeof promptInput, userText: string): ModelRow => {
       const tokens = countPromptTokens(pInput, m);
-      const out = predictOutput(tokens.total, userText, m);
+      const out = predictOutput(tokens.total, userText, m, { correctionFactors });
       const cachedTokens =
         tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
       const effectiveTier: "standard" | "batch" = tier === "cached" ? "standard" : tier;
@@ -212,7 +213,7 @@ export default function Home() {
         },
       };
     },
-    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl],
+    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl, correctionFactors],
   );
 
   const rows: ModelRow[] = useMemo(

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { SelfCalibration } from "@/components/SelfCalibration";
 import { useTokenBurnStore } from "@/lib/store";
 import { MODELS } from "@/lib/models";
 import { countTokensForText, anthropicExactCount, geminiExactCount } from "@/lib/tokenizer";
@@ -189,6 +190,8 @@ export default function CalibrationPage() {
             </CardContent>
           </Card>
         )}
+
+        <SelfCalibration />
       </main>
     </div>
   );
