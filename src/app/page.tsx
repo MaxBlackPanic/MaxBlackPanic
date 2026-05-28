@@ -13,6 +13,7 @@ import { VolumeCalculator } from "@/components/VolumeCalculator";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { OrientationCard } from "@/components/OrientationCard";
+import { EchoProbe } from "@/components/EchoProbe";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -378,6 +379,17 @@ export default function Home() {
                       {rows[0].prediction.archetype ? ` · ${rows[0].prediction.archetype}` : ""}
                     </Badge>
                   )}
+                  {(rows[0]?.prediction?.archetype === "code" ||
+                    rows[0]?.prediction?.archetype === "agentic") &&
+                    reasoningBudget === 0 && (
+                      <Badge
+                        variant="warn"
+                        className="text-[10px]"
+                        title="Reasoning tokens are billed at the OUTPUT rate and can exceed the visible answer in volume. Set a Reasoning budget in the Settings panel."
+                      >
+                        reasoning likely — budget not set
+                      </Badge>
+                    )}
                   {analysis.taskClass && (
                     <Badge variant="outline" className="text-[10px]">
                       task: {analysis.taskClass}
@@ -492,6 +504,14 @@ export default function Home() {
                 afterCost={abTotals.bCost}
                 onAccept={acceptB}
                 onRevert={() => setAbMode(false)}
+              />
+            )}
+
+            {!abMode && (
+              <EchoProbe
+                prompt={prompt}
+                localPredictedOutput={rows[0]?.outputExpected ?? 0}
+                localProjectedCost={rows[0]?.totalCost ?? 0}
               />
             )}
 
