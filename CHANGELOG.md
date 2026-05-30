@@ -5,6 +5,26 @@ All notable changes to AITokenBurn will be documented here. The format follows
 
 ## [Unreleased]
 
+### Catalog refresh — 2026-05-30
+
+- Added **Claude Opus 4.8** as the current Anthropic flagship.
+  Pricing assumed identical to Opus 4.7 ($5/$25 per 1M; 1M context;
+  64K max output) — flagged as **approximate** in the catalog `notes`
+  field and the MODELS.md row; re-verify against
+  <https://www.anthropic.com/pricing> before relying on it for
+  budgeting.
+- `DEFAULT_COMPARE_IDS` now features Opus 4.8 in place of Opus 4.7
+  so first-load comparisons include the current flagship by default.
+- Analyser routing recommendations (`reasoning`, `creative`,
+  `agentic` task classes) now point at Opus 4.8 on the Anthropic side.
+- All other entries unchanged. `lastVerified` bumped to 2026-05-30
+  on the assumption that vendor prices haven't moved in the last
+  week; the pricing-freshness banner already flags entries older
+  than 45 days so this just resets the clock.
+- OpenAI / Google / DeepSeek / xAI / Meta / Mistral: no new entries
+  added. Without web access to verify, speculative entries would
+  undermine the catalog's credibility. Add specifics on request.
+
 ### Phase 2 — output cost & multi-turn cost-intelligence
 
 Extends AITokenBurn from an input-cost calculator into a complete

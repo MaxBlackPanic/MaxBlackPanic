@@ -1,10 +1,12 @@
 # Model & Pricing Reference
 
 Single source of truth for every model AITokenBurn knows about. All rates are USD per 1M
-tokens unless noted otherwise. Last bulk verification: **2026-05-23**.
+tokens unless noted otherwise. Last bulk verification: **2026-05-30**.
 
 When updating prices: edit `src/lib/models.ts`, update `lastVerified` in this file too, and
-add a `CHANGELOG.md` entry.
+add a `CHANGELOG.md` entry. Approximate entries (flagged in the catalog's `notes` field)
+should be re-verified against the vendor's pricing page before being relied on for
+budgeting.
 
 ---
 
@@ -14,7 +16,8 @@ Source: <https://www.anthropic.com/pricing>
 
 | Model | Input | Output | Cached input | Cache write 5m | Cache write 1h | Context | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 4.7 | $5.00 | $25.00 | $0.50 | 1.25× input | 2× input | 1M | new Opus 4.7 tokeniser (estimated 1.30× cl100k) |
+| **Claude Opus 4.8** | $5.00 | $25.00 | $0.50 | 1.25× input | 2× input | 1M | **current flagship**; pricing **approximate** — verify against source |
+| Claude Opus 4.7 | $5.00 | $25.00 | $0.50 | 1.25× input | 2× input | 1M | previous flagship; new Opus 4.7 tokeniser (estimated 1.30× cl100k) |
 | Claude Opus 4.6 | $5.00 | $25.00 | $0.50 | 1.25× input | 2× input | 1M | |
 | Claude Sonnet 4.6 | $3.00 | $15.00 | $0.30 | 1.25× input | 2× input | 1M | |
 | Claude Haiku 4.5 | $1.00 | $5.00 | $0.10 | 1.25× input | 2× input | 1M | |

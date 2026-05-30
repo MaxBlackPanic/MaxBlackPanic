@@ -495,7 +495,7 @@ const ROUTING: Record<TaskClass, { vendor: string; suggestion: string }[]> = {
     { vendor: "google", suggestion: "gemini-3-flash" },
   ],
   reasoning: [
-    { vendor: "anthropic", suggestion: "claude-opus-4-7" },
+    { vendor: "anthropic", suggestion: "claude-opus-4-8" },
     { vendor: "openai", suggestion: "gpt-5-5" },
     { vendor: "google", suggestion: "gemini-3-1-pro" },
   ],
@@ -505,12 +505,12 @@ const ROUTING: Record<TaskClass, { vendor: string; suggestion: string }[]> = {
     { vendor: "google", suggestion: "gemini-3-5-flash" },
   ],
   creative: [
-    { vendor: "anthropic", suggestion: "claude-opus-4-7" },
+    { vendor: "anthropic", suggestion: "claude-opus-4-8" },
     { vendor: "openai", suggestion: "gpt-5-4" },
     { vendor: "google", suggestion: "gemini-3-1-pro" },
   ],
   agentic: [
-    { vendor: "anthropic", suggestion: "claude-opus-4-7" },
+    { vendor: "anthropic", suggestion: "claude-opus-4-8" },
     { vendor: "openai", suggestion: "gpt-5-5" },
     { vendor: "google", suggestion: "gemini-3-1-pro" },
   ],
