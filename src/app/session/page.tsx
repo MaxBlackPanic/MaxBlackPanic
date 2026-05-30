@@ -65,7 +65,7 @@ export default function SessionPage() {
     };
     downloadString(
       JSON.stringify(payload, null, 2),
-      timestampedFilename("tokenburn-session", "json"),
+      timestampedFilename("aitokenburn-session", "json"),
       "application/json",
     );
   }

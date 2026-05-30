@@ -1,8 +1,8 @@
-# TokenBurn
+# AITokenBurn
 
 [![CI](https://github.com/MaxBlackPanic/MaxBlackPanic/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxBlackPanic/MaxBlackPanic/actions/workflows/ci.yml)
 
-**TokenBurn** is an AI token-burn calculator that:
+**AITokenBurn** is an AI token-burn calculator that:
 
 - predicts how many tokens a given prompt will consume across every major frontier model,
 - estimates the dollar cost of running that prompt under standard, batch, and cached-input
@@ -57,7 +57,7 @@ vercel              # preview deploy (gets a unique URL)
 vercel --prod       # production deploy (gets your project's main URL)
 ```
 
-No environment variables are required — TokenBurn has zero server-side secrets. All tokenisation runs in the browser; vendor count-token API keys (Anthropic, Google) are entered by the user at runtime and held in session memory only.
+No environment variables are required — AITokenBurn has zero server-side secrets. All tokenisation runs in the browser; vendor count-token API keys (Anthropic, Google) are entered by the user at runtime and held in session memory only.
 
 ### Auto-deploy from GitHub
 
@@ -78,7 +78,7 @@ The CI workflow in `.github/workflows/ci.yml` runs typecheck + lint + tests + bu
 
 ## Phase 2 — output cost & multi-turn cost-intelligence
 
-Phase 2 extends TokenBurn from an input-cost calculator into a complete
+Phase 2 extends AITokenBurn from an input-cost calculator into a complete
 cost-intelligence tool. Output is billed 5-6× the input rate on every
 current frontier model, so getting output prediction right matters far more
 than getting input right.
@@ -300,7 +300,7 @@ and see the delta per model.
   via the browser devtools, or use the "Reset prompt &amp; attachments" button on the
   Settings panel.
 - **API keys are NEVER persisted** — they live in memory for the session only. There are no
-  TokenBurn servers; nothing is transmitted unless you explicitly hit "Run calibration" or
+  AITokenBurn servers; nothing is transmitted unless you explicitly hit "Run calibration" or
   switch on exact-count mode.
 - No telemetry, no analytics.
 

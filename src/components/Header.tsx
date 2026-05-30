@@ -52,7 +52,7 @@ const NAV = [
     href: "/about",
     label: "About",
     icon: BookOpen,
-    title: "What TokenBurn does, how the tokenisers are calibrated, and the privacy guarantees.",
+    title: "What AITokenBurn does, how the tokenisers are calibrated, and the privacy guarantees.",
   },
 ];
 
@@ -64,11 +64,11 @@ export function Header() {
       <Link
         href="/"
         className="group flex items-center gap-2 rounded-md px-1 py-0.5 -mx-1 transition-colors hover:bg-accent/40"
-        aria-label="TokenBurn home"
+        aria-label="AITokenBurn home"
       >
         <Flame className="h-6 w-6 text-primary transition-transform group-hover:scale-110" />
         <h1 className="text-lg font-bold tracking-tight">
-          Token<span className="tokenburn-flame">Burn</span>
+          AIToken<span className="tokenburn-flame">Burn</span>
         </h1>
         <span className="hidden text-xs text-muted-foreground sm:inline">
           AI prompt cost &amp; efficiency
@@ -105,7 +105,7 @@ export function Header() {
           </Button>
           <SheetContent side="right" className="px-4">
             <SheetHeader>
-              <SheetTitle>TokenBurn</SheetTitle>
+              <SheetTitle>AITokenBurn</SheetTitle>
               <SheetDescription>AI prompt cost &amp; efficiency</SheetDescription>
             </SheetHeader>
             <nav className="flex flex-col gap-1" aria-label="Mobile">
