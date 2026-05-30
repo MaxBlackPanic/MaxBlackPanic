@@ -14,11 +14,11 @@ export default function AboutPage() {
       <main className="container mx-auto max-w-3xl space-y-4 px-4 py-8 text-sm leading-relaxed">
         <Card>
           <CardHeader>
-            <CardTitle>About TokenBurn</CardTitle>
+            <CardTitle>About AITokenBurn</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              TokenBurn is a token-cost calculator and prompt efficiency analyser, designed to be
+              AITokenBurn is a token-cost calculator and prompt efficiency analyser, designed to be
               accurate enough that a finance team or platform engineer can trust its numbers for
               monthly budget forecasting.
             </p>
@@ -47,7 +47,7 @@ export default function AboutPage() {
             <p className="text-muted-foreground">
               Your prompt never leaves the browser unless you explicitly opt in to exact-count
               mode. API keys are kept in memory for the session only — never persisted to disk
-              or transmitted to TokenBurn&apos;s servers.
+              or transmitted to AITokenBurn&apos;s servers.
             </p>
 
             <h3 className="font-semibold">Pricing accuracy</h3>

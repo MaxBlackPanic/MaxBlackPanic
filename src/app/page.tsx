@@ -297,7 +297,7 @@ export default function Home() {
       includeVolume: showVolume,
       rowsB: abMode ? rowsB : undefined,
     });
-    downloadString(csv, timestampedFilename("tokenburn-comparison", "csv"), "text/csv");
+    downloadString(csv, timestampedFilename("aitokenburn-comparison", "csv"), "text/csv");
   }
 
   function exportJSON() {
@@ -307,7 +307,7 @@ export default function Home() {
       includeVolume: showVolume,
       rowsB: abMode ? rowsB : undefined,
     });
-    downloadString(json, timestampedFilename("tokenburn-comparison", "json"), "application/json");
+    downloadString(json, timestampedFilename("aitokenburn-comparison", "json"), "application/json");
   }
 
   async function copyShareLink() {
@@ -641,7 +641,7 @@ export default function Home() {
 
         <footer className="mt-8 border-t pt-4 text-xs text-muted-foreground">
           <p>
-            TokenBurn runs all tokenisation client-side. Vendor count-token APIs are only called
+            AITokenBurn runs all tokenisation client-side. Vendor count-token APIs are only called
             when you explicitly opt in. Pricing data last verified on the date shown beside each
             model — sources documented in MODELS.md.
           </p>

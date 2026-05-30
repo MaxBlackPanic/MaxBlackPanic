@@ -121,7 +121,7 @@ export default function ForecastPage() {
           ? batchComparisonRows
           : undefined;
     const csv = rowsToCSV(rows, { tier, callsPerDay, includeVolume: true, rowsB });
-    downloadString(csv, timestampedFilename("tokenburn-forecast", "csv"), "text/csv");
+    downloadString(csv, timestampedFilename("aitokenburn-forecast", "csv"), "text/csv");
   }
   function exportJSON() {
     const rowsB =
@@ -131,7 +131,7 @@ export default function ForecastPage() {
           ? batchComparisonRows
           : undefined;
     const json = rowsToJSON(rows, { tier, callsPerDay, includeVolume: true, rowsB });
-    downloadString(json, timestampedFilename("tokenburn-forecast", "json"), "application/json");
+    downloadString(json, timestampedFilename("aitokenburn-forecast", "json"), "application/json");
   }
 
   return (

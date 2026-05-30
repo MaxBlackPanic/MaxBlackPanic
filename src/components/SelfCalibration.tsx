@@ -93,7 +93,7 @@ export function SelfCalibration() {
     if (!report) return;
     downloadString(
       JSON.stringify(buildCalibrationExport(report), null, 2),
-      timestampedFilename("tokenburn-calibration", "json"),
+      timestampedFilename("aitokenburn-calibration", "json"),
       "application/json",
     );
   }

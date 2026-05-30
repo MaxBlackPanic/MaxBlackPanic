@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to TokenBurn will be documented here. The format follows
+All notable changes to AITokenBurn will be documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
 ### Phase 2 — output cost & multi-turn cost-intelligence
 
-Extends TokenBurn from an input-cost calculator into a complete
+Extends AITokenBurn from an input-cost calculator into a complete
 cost-intelligence tool. Output is billed 5-6× the input rate on every
 current frontier model, so output prediction matters far more than input.
 
