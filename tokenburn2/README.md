@@ -101,6 +101,26 @@ PROXY_TARGET=http://localhost:3000 npm run dev
 
 Vite proxies `/api/*` to `PROXY_TARGET` (default `http://localhost:3000`).
 
+## Deploying (separate Vercel project)
+
+TokenBurn 2.0 deploys as its **own** Vercel project, independent of the Next.js
+app at the repository root. The included [`vercel.json`](vercel.json) configures
+the Vite framework, build command, and `dist` output directory.
+
+To set it up once:
+
+1. In Vercel, **Add New → Project** and import this repository.
+2. Set **Root Directory** to `tokenburn2`.
+3. Vercel auto-detects the rest from `vercel.json` (framework `vite`, build
+   `npm run build`, output `dist`). The `api/count.ts` edge function deploys
+   automatically.
+4. (Optional) add `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `APP_ORIGIN`
+   environment variables for exact Anthropic/Gemini counts — see
+   [`.env.example`](.env.example).
+
+The original root app's Vercel project is unaffected; the two deploy side by
+side at separate URLs.
+
 ## Updating pricing
 
 All pricing lives in one file: [`src/pricing.ts`](src/pricing.ts). There is no
