@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  @apply bg-[#0d0a24] text-white antialiased;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}

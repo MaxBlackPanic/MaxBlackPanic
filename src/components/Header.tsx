@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Moon, Sun, BookOpen, BarChart3, Calculator } from "lucide-react";
+import { Flame, Moon, Sun, BookOpen, BarChart3, Calculator, Gamepad2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTokenBurnStore } from "@/lib/store";
@@ -35,6 +35,12 @@ export function Header() {
           <Link href="/about" className="gap-1.5">
             <BookOpen className="h-3.5 w-3.5" />
             About
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/echoes" className="gap-1.5">
+            <Gamepad2 className="h-3.5 w-3.5" />
+            Echoes
           </Link>
         </Button>
         <Button variant="ghost" size="icon" onClick={toggleDarkMode} aria-label="Toggle theme">
