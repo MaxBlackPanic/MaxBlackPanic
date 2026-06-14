@@ -12,10 +12,19 @@ import { DiffView } from "@/components/DiffView";
 import { VolumeCalculator } from "@/components/VolumeCalculator";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { AttachmentsPanel } from "@/components/AttachmentsPanel";
+import { OrientationCard } from "@/components/OrientationCard";
+import { EchoProbe } from "@/components/EchoProbe";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileJson, Share2, Check, ArrowLeftRight } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Download, FileJson, Share2, Check, ArrowLeftRight, Settings as SettingsIcon } from "lucide-react";
 
 import { useTokenBurnStore } from "@/lib/store";
 import { MODELS } from "@/lib/models";
@@ -59,6 +68,7 @@ export default function Home() {
     setCallsPerDay,
     showVolume,
     darkMode,
+    correctionFactors,
   } = useTokenBurnStore();
 
   // Sync html.dark class with the store.
@@ -94,6 +104,9 @@ export default function Home() {
     }
     setRestoredFromShare(true);
   }, [restoredFromShare, setPrompt, setSystem, setSelectedModelIds, setPromptB, setAbMode]);
+
+  // Mobile/tablet settings drawer.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // "Copied" affordance for the share button.
   const [shareCopiedAt, setShareCopiedAt] = useState<number | null>(null);
@@ -131,7 +144,7 @@ export default function Home() {
   const buildRow = useCallback(
     (m: typeof MODELS[number], pInput: typeof promptInput, userText: string): ModelRow => {
       const tokens = countPromptTokens(pInput, m);
-      const out = predictOutput(tokens.total, userText, m);
+      const out = predictOutput(tokens.total, userText, m, { correctionFactors });
       const cachedTokens =
         tier === "cached" ? Math.round(tokens.total * cachedInputFraction) : 0;
       const effectiveTier: "standard" | "batch" = tier === "cached" ? "standard" : tier;
@@ -174,6 +187,8 @@ export default function Home() {
         effectiveTier,
       );
 
+      const outputBucket = expected.outputCost + expected.reasoningCost;
+      const total = expected.total;
       return {
         model: m,
         inputTokens: tokens.total,
@@ -185,16 +200,30 @@ export default function Home() {
           expected.cachedInputCost +
           expected.cacheWriteCost +
           expected.longContextSurchargeCost,
-        outputCost: expected.outputCost + expected.reasoningCost,
-        totalCost: expected.total,
+        outputCost: outputBucket,
+        totalCost: total,
         totalCostLow: low.total,
         totalCostHigh: high.total,
         contextUtilisation: tokens.total / m.contextWindow,
         tokenConfidence: tokens.confidence,
         tokenUncertaintyFraction: tokens.uncertaintyFraction,
+        costBuckets: {
+          billedInput: expected.inputCost,
+          cachedInput: expected.cachedInputCost,
+          cacheWrite: expected.cacheWriteCost,
+          longContextSurcharge: expected.longContextSurchargeCost,
+          visibleOutput: expected.outputCost,
+          reasoning: expected.reasoningCost,
+        },
+        outputShare: total > 0 ? outputBucket / total : 0,
+        prediction: {
+          tier: out.tier,
+          archetype: out.archetype,
+          rationale: out.rationale,
+        },
       };
     },
-    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl],
+    [tier, reasoningBudget, cachedInputFraction, cacheWriteTokens, cacheWriteTtl, correctionFactors],
   );
 
   const rows: ModelRow[] = useMemo(
@@ -268,7 +297,7 @@ export default function Home() {
       includeVolume: showVolume,
       rowsB: abMode ? rowsB : undefined,
     });
-    downloadString(csv, timestampedFilename("tokenburn-comparison", "csv"), "text/csv");
+    downloadString(csv, timestampedFilename("aitokenburn-comparison", "csv"), "text/csv");
   }
 
   function exportJSON() {
@@ -278,7 +307,7 @@ export default function Home() {
       includeVolume: showVolume,
       rowsB: abMode ? rowsB : undefined,
     });
-    downloadString(json, timestampedFilename("tokenburn-comparison", "json"), "application/json");
+    downloadString(json, timestampedFilename("aitokenburn-comparison", "json"), "application/json");
   }
 
   async function copyShareLink() {
@@ -340,6 +369,7 @@ export default function Home() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* LEFT: editor + system + diff */}
           <div className="space-y-4">
+            <OrientationCard />
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -350,6 +380,27 @@ export default function Home() {
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {formatTokens(liveTokenCount)} tokens
                   </Badge>
+                  {rows[0]?.prediction && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px]"
+                      title={rows[0].prediction.rationale}
+                    >
+                      output: {rows[0].prediction.tier}
+                      {rows[0].prediction.archetype ? ` · ${rows[0].prediction.archetype}` : ""}
+                    </Badge>
+                  )}
+                  {(rows[0]?.prediction?.archetype === "code" ||
+                    rows[0]?.prediction?.archetype === "agentic") &&
+                    reasoningBudget === 0 && (
+                      <Badge
+                        variant="warn"
+                        className="text-[10px]"
+                        title="Reasoning tokens are billed at the OUTPUT rate and can exceed the visible answer in volume. Set a Reasoning budget in the Settings panel."
+                      >
+                        reasoning likely — budget not set
+                      </Badge>
+                    )}
                   {analysis.taskClass && (
                     <Badge variant="outline" className="text-[10px]">
                       task: {analysis.taskClass}
@@ -394,7 +445,7 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="h-[420px] border-t">
+                <div className="h-[260px] border-t md:h-[420px]">
                   <PromptEditor
                     value={prompt}
                     onChange={setPrompt}
@@ -442,7 +493,7 @@ export default function Home() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="h-[420px] border-t">
+                  <div className="h-[260px] border-t md:h-[420px]">
                     <PromptEditor
                       value={promptB}
                       onChange={setPromptB}
@@ -464,6 +515,14 @@ export default function Home() {
                 afterCost={abTotals.bCost}
                 onAccept={acceptB}
                 onRevert={() => setAbMode(false)}
+              />
+            )}
+
+            {!abMode && (
+              <EchoProbe
+                prompt={prompt}
+                localPredictedOutput={rows[0]?.outputExpected ?? 0}
+                localProjectedCost={rows[0]?.totalCost ?? 0}
               />
             )}
 
@@ -549,16 +608,40 @@ export default function Home() {
             </Tabs>
           </div>
 
-          {/* RIGHT: settings + attachments */}
-          <aside className="space-y-4">
+          {/* RIGHT: settings + attachments (sidebar on lg+, drawer below). */}
+          <aside className="hidden space-y-4 lg:block">
             <SettingsPanel />
             {showAttachments && <AttachmentsPanel />}
           </aside>
         </div>
 
+        {/* Mobile / tablet floating settings trigger. */}
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <Button
+            onClick={() => setSettingsOpen(true)}
+            className="fixed bottom-4 right-4 z-40 h-12 rounded-full px-5 shadow-lg lg:hidden gap-2"
+            aria-label="Open settings"
+          >
+            <SettingsIcon className="h-4 w-4" />
+            Settings
+          </Button>
+          <SheetContent side="right" className="px-4 w-full sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Settings</SheetTitle>
+              <SheetDescription>
+                Pricing tier, models compared, attachments, exact-count keys.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="space-y-4">
+              <SettingsPanel />
+              {showAttachments && <AttachmentsPanel />}
+            </div>
+          </SheetContent>
+        </Sheet>
+
         <footer className="mt-8 border-t pt-4 text-xs text-muted-foreground">
           <p>
-            TokenBurn runs all tokenisation client-side. Vendor count-token APIs are only called
+            AITokenBurn runs all tokenisation client-side. Vendor count-token APIs are only called
             when you explicitly opt in. Pricing data last verified on the date shown beside each
             model — sources documented in MODELS.md.
           </p>

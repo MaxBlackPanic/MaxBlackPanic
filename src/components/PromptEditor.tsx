@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
 import type { editor as monacoEditor } from "monaco-editor";
 import type { PromptSuggestion } from "@/lib/analyser";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 const Monaco = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -15,12 +16,17 @@ interface Props {
 }
 
 export function PromptEditor({ value, onChange, suggestions, darkMode }: Props) {
+  // Monaco is a desktop-first editor (poor touch selection / virtual
+  // keyboard handling). Swap for a styled textarea under 768px so phones
+  // get a real editing experience.
+  const isMobile = useIsMobile(768);
+
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
 
-  // Apply / refresh decorations whenever suggestions or value change.
   useEffect(() => {
+    if (isMobile) return;
     const editor = editorRef.current;
     const monaco = monacoRef.current;
     if (!editor || !monaco) return;
@@ -55,7 +61,23 @@ export function PromptEditor({ value, onChange, suggestions, darkMode }: Props) 
       }
     }
     decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecos);
-  }, [suggestions, value]);
+  }, [suggestions, value, isMobile]);
+
+  if (isMobile) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-md border bg-card">
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          className="h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-[13px] leading-relaxed outline-none focus:ring-0"
+          placeholder="Paste your prompt here…"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full overflow-hidden rounded-md border bg-card">

@@ -107,11 +107,16 @@ export function projectVolume(perCallCost: number, callsPerDay: number) {
 export function formatUSD(n: number): string {
   if (!isFinite(n)) return "—";
   if (n === 0) return "$0.00";
-  if (n < 0.0001) return `$${n.toExponential(2)}`;
-  if (n < 0.01) return `$${n.toFixed(5)}`;
-  if (n < 1) return `$${n.toFixed(4)}`;
-  if (n < 1000) return `$${n.toFixed(2)}`;
-  return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  // Use fixed decimals down to $1e-7 (e.g. $0.0000330 — a tenth of a millicent).
+  // Below that, fall back to scientific so we don't print 10+ decimals.
+  if (abs < 1e-7) return `${sign}$${abs.toExponential(2)}`;
+  if (abs < 0.0001) return `${sign}$${abs.toFixed(7)}`;
+  if (abs < 0.01) return `${sign}$${abs.toFixed(5)}`;
+  if (abs < 1) return `${sign}$${abs.toFixed(4)}`;
+  if (abs < 1000) return `${sign}$${abs.toFixed(2)}`;
+  return `${sign}$${abs.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 export function formatTokens(n: number): string {

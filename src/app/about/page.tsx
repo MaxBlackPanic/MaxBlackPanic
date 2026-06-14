@@ -1,18 +1,24 @@
+"use client";
+
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useTokenBurnStore } from "@/lib/store";
 
 export default function AboutPage() {
+  const showOrientation = useTokenBurnStore((s) => s.showOrientation);
   return (
     <div className="min-h-screen">
       <Header />
       <main className="container mx-auto max-w-3xl space-y-4 px-4 py-8 text-sm leading-relaxed">
         <Card>
           <CardHeader>
-            <CardTitle>About TokenBurn</CardTitle>
+            <CardTitle>About AITokenBurn</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              TokenBurn is a token-cost calculator and prompt efficiency analyser, designed to be
+              AITokenBurn is a token-cost calculator and prompt efficiency analyser, designed to be
               accurate enough that a finance team or platform engineer can trust its numbers for
               monthly budget forecasting.
             </p>
@@ -41,7 +47,7 @@ export default function AboutPage() {
             <p className="text-muted-foreground">
               Your prompt never leaves the browser unless you explicitly opt in to exact-count
               mode. API keys are kept in memory for the session only — never persisted to disk
-              or transmitted to TokenBurn&apos;s servers.
+              or transmitted to AITokenBurn&apos;s servers.
             </p>
 
             <h3 className="font-semibold">Pricing accuracy</h3>
@@ -55,6 +61,14 @@ export default function AboutPage() {
             <p className="text-muted-foreground">
               MIT. See <code>CONTRIBUTING</code> in the README for how to bump prices or add
               models.
+            </p>
+
+            <h3 className="font-semibold">Lost? Replay the orientation hints</h3>
+            <p className="text-muted-foreground">
+              <Button asChild variant="link" size="sm" className="h-auto p-0 text-sm" onClick={showOrientation}>
+                <Link href="/">Show me around again</Link>
+              </Button>{" "}
+              — restores the welcome card on the main analyser page.
             </p>
           </CardContent>
         </Card>

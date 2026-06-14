@@ -55,20 +55,31 @@ export default function ForecastPage() {
       },
       effectiveTier,
     );
+    const outputBucket = cost.outputCost + cost.reasoningCost;
     return {
       model: m,
       inputTokens,
       outputLow: outputTokens,
       outputExpected: outputTokens,
       outputHigh: outputTokens,
-      inputCost: cost.inputCost + cost.cachedInputCost + cost.longContextSurchargeCost,
-      outputCost: cost.outputCost + cost.reasoningCost,
+      inputCost:
+        cost.inputCost + cost.cachedInputCost + cost.cacheWriteCost + cost.longContextSurchargeCost,
+      outputCost: outputBucket,
       totalCost: cost.total,
       totalCostLow: cost.total,
       totalCostHigh: cost.total,
       contextUtilisation: inputTokens / m.contextWindow,
       tokenConfidence: "exact" as const,
       tokenUncertaintyFraction: 0,
+      costBuckets: {
+        billedInput: cost.inputCost,
+        cachedInput: cost.cachedInputCost,
+        cacheWrite: cost.cacheWriteCost,
+        longContextSurcharge: cost.longContextSurchargeCost,
+        visibleOutput: cost.outputCost,
+        reasoning: cost.reasoningCost,
+      },
+      outputShare: cost.total > 0 ? outputBucket / cost.total : 0,
     };
   }
 
@@ -110,7 +121,7 @@ export default function ForecastPage() {
           ? batchComparisonRows
           : undefined;
     const csv = rowsToCSV(rows, { tier, callsPerDay, includeVolume: true, rowsB });
-    downloadString(csv, timestampedFilename("tokenburn-forecast", "csv"), "text/csv");
+    downloadString(csv, timestampedFilename("aitokenburn-forecast", "csv"), "text/csv");
   }
   function exportJSON() {
     const rowsB =
@@ -120,7 +131,7 @@ export default function ForecastPage() {
           ? batchComparisonRows
           : undefined;
     const json = rowsToJSON(rows, { tier, callsPerDay, includeVolume: true, rowsB });
-    downloadString(json, timestampedFilename("tokenburn-forecast", "json"), "application/json");
+    downloadString(json, timestampedFilename("aitokenburn-forecast", "json"), "application/json");
   }
 
   return (

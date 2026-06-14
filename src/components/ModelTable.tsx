@@ -15,7 +15,9 @@ export interface ModelRow {
   outputLow: number;
   outputExpected: number;
   outputHigh: number;
+  /** Rolled-up "input column" total (billed input + cached + write + long-context surcharge). */
   inputCost: number;
+  /** Rolled-up "output column" total (visible output + reasoning). */
   outputCost: number;
   totalCost: number;
   totalCostLow: number;
@@ -23,12 +25,30 @@ export interface ModelRow {
   contextUtilisation: number;
   tokenConfidence: "exact" | "high" | "medium" | "low";
   tokenUncertaintyFraction: number;
+  /** Cost breakdown buckets for the waterfall chart. */
+  costBuckets?: {
+    billedInput: number;
+    cachedInput: number;
+    cacheWrite: number;
+    longContextSurcharge: number;
+    visibleOutput: number;
+    reasoning: number;
+  };
+  /** Output's share of total cost as a 0–1 fraction. */
+  outputShare?: number;
+  /** Optional prediction metadata for the UI confidence chip. */
+  prediction?: {
+    tier: "deterministic" | "structural" | "archetype";
+    archetype?: string;
+    rationale: string;
+  };
 }
 
 type SortKey =
   | "totalCost"
   | "inputCost"
   | "outputCost"
+  | "outputShare"
   | "contextUtilisation"
   | "vendor"
   | "delta";
@@ -86,6 +106,10 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
           av = a.model.vendor;
           bv = b.model.vendor;
           break;
+        case "outputShare":
+          av = a.outputShare ?? 0;
+          bv = b.outputShare ?? 0;
+          break;
         case "delta": {
           const aB = bById.get(a.model.id);
           const bB = bById.get(b.model.id);
@@ -123,7 +147,135 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="scrollbar-thin overflow-x-auto rounded-md border" role="region" aria-label="Model cost comparison">
+      {/* Mobile: card list (< md). Avoids horizontal scroll on phones. */}
+      <ul
+        className="space-y-2 md:hidden"
+        role="region"
+        aria-label="Model cost comparison (mobile)"
+      >
+        {sorted.map((row) => {
+          const v = VENDOR_BADGE[row.model.vendor];
+          const utilPct = Math.round(row.contextUtilisation * 100);
+          const utilTone =
+            utilPct >= 80 ? "bg-destructive" : utilPct >= 60 ? "bg-warn" : "bg-emerald-500";
+          const sharePct = Math.round((row.outputShare ?? 0) * 100);
+          const shareTone =
+            sharePct >= 80 ? "bg-destructive" : sharePct >= 60 ? "bg-warn" : "bg-emerald-500";
+          const b = rowsB ? bById.get(row.model.id) : undefined;
+          const delta = b ? row.totalCost - b.totalCost : null;
+          const isCheapest = row.model.id === cheapestId;
+          return (
+            <li
+              key={row.model.id}
+              className="rounded-md border bg-card p-3"
+              aria-current={isCheapest ? "true" : undefined}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`${v.className} text-[10px]`}>
+                    {v.label}
+                  </Badge>
+                  <span className="text-sm font-medium">{row.model.label}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold tabular-nums">
+                    {formatUSD(row.totalCost)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground tabular-nums">
+                    ({formatUSD(row.totalCostLow)}–{formatUSD(row.totalCostHigh)})
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Input</span>
+                  <span className="tabular-nums text-foreground">{formatTokens(row.inputTokens)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Output (exp)</span>
+                  <span className="tabular-nums text-foreground">
+                    {formatTokens(row.outputExpected)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Input cost</span>
+                  <span className="tabular-nums text-foreground">{formatUSD(row.inputCost)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Output cost</span>
+                  <span className="tabular-nums text-foreground">{formatUSD(row.outputCost)}</span>
+                </div>
+                <div className="col-span-2 flex items-center justify-between gap-2 text-muted-foreground">
+                  <span>Out %</span>
+                  <div className="flex flex-1 items-center justify-end gap-2">
+                    <span className="tabular-nums text-foreground">{sharePct}%</span>
+                    <div className="w-20">
+                      <Progress value={sharePct} indicatorClassName={shareTone} />
+                    </div>
+                  </div>
+                </div>
+                <div className="col-span-2 flex items-center justify-between gap-2 text-muted-foreground">
+                  <span>Context</span>
+                  <div className="flex flex-1 items-center justify-end gap-2">
+                    <span className="tabular-nums text-foreground">{utilPct}%</span>
+                    <div className="w-20">
+                      <Progress value={utilPct} indicatorClassName={utilTone} />
+                    </div>
+                  </div>
+                </div>
+                {b && delta !== null && (
+                  <div className="col-span-2 flex justify-between border-t pt-1">
+                    <span className="text-muted-foreground">B total</span>
+                    <span className="tabular-nums">{formatUSD(b.totalCost)}</span>
+                  </div>
+                )}
+                {b && delta !== null && (
+                  <div className="col-span-2 flex justify-between">
+                    <span className="text-muted-foreground">Δ (A − B)</span>
+                    <span
+                      className={`tabular-nums font-semibold ${
+                        delta > 0
+                          ? "text-emerald-500"
+                          : delta < 0
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                      }`}
+                    >
+                      {delta > 0 ? "−" : delta < 0 ? "+" : ""}
+                      {formatUSD(Math.abs(delta))}
+                    </span>
+                  </div>
+                )}
+                <div className="col-span-2 flex justify-between text-[10px] text-muted-foreground">
+                  <span>Verified</span>
+                  <a
+                    href={row.model.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {row.model.lastVerified}
+                  </a>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+        {onSelectCheapest && cheapestId && (
+          <li>
+            <Button size="sm" variant="outline" onClick={() => onSelectCheapest(cheapestId)} className="w-full">
+              Select cheapest
+            </Button>
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop: full sortable table (md:+). */}
+      <div
+        className="scrollbar-thin hidden overflow-x-auto rounded-md border md:block"
+        role="region"
+        aria-label="Model cost comparison"
+      >
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -132,6 +284,7 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
               <th className="px-3 py-2 text-right">Output (exp)</th>
               <th className="px-3 py-2 text-right">{headerBtn("Input cost", "inputCost")}</th>
               <th className="px-3 py-2 text-right">{headerBtn("Output cost", "outputCost")}</th>
+              <th className="px-3 py-2 text-right">{headerBtn("Out %", "outputShare")}</th>
               <th className="px-3 py-2 text-right">
                 {rowsB ? headerBtn("A total", "totalCost") : headerBtn("Total / call", "totalCost")}
               </th>
@@ -201,13 +354,35 @@ export function ModelTable({ rows, tier, onSelectCheapest, rowsB }: Props) {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatUSD(row.inputCost)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatUSD(row.outputCost)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {(() => {
+                      const pct = Math.round((row.outputShare ?? 0) * 100);
+                      const tone =
+                        pct >= 80 ? "bg-destructive" : pct >= 60 ? "bg-warn" : "bg-emerald-500";
+                      return (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="tabular-nums text-xs text-muted-foreground">
+                            {pct}%
+                          </span>
+                          <div className="w-12">
+                            <Progress value={pct} indicatorClassName={tone} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>{formatUSD(row.totalCost)}</span>
+                        <div className="flex flex-col items-end leading-tight">
+                          <span>{formatUSD(row.totalCost)}</span>
+                          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
+                            ({formatUSD(row.totalCostLow)}–{formatUSD(row.totalCostHigh)})
+                          </span>
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Range: {formatUSD(row.totalCostLow)} – {formatUSD(row.totalCostHigh)} ({tier})
+                        Low / expected / high — output is range-predicted. Tier: {tier}.
                       </TooltipContent>
                     </Tooltip>
                   </td>

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs for the same PR / branch when a new commit lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Disable Next.js anonymous telemetry in CI.
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Verify build output exists
+        run: |
+          test -d .next || (echo ".next directory missing" && exit 1)
+          test -f .next/BUILD_ID || (echo ".next/BUILD_ID missing" && exit 1)
+          echo "Build OK"

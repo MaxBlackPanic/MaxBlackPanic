@@ -144,10 +144,21 @@ describe("projectVolume", () => {
 describe("formatters", () => {
   it("formats USD with sensible precision", () => {
     expect(formatUSD(0)).toBe("$0.00");
-    expect(formatUSD(0.00001)).toMatch(/e/);
+    // Sub-microdollar: fixed 7 decimals, NOT scientific (finance-readable).
+    expect(formatUSD(0.0000330)).toBe("$0.0000330");
+    expect(formatUSD(0.00001)).toBe("$0.0000100");
+    // Tenths of a cent: 5 decimals.
+    expect(formatUSD(0.00018)).toBe("$0.00018");
     expect(formatUSD(0.5)).toBe("$0.5000");
     expect(formatUSD(12.345)).toBe("$12.35");
     expect(formatUSD(100_000)).toBe("$100,000");
+  });
+
+  it("handles negative deltas and falls back to scientific only for truly micro values", () => {
+    expect(formatUSD(-0.5)).toBe("-$0.5000");
+    expect(formatUSD(-0.0000330)).toBe("-$0.0000330");
+    // Below $1e-7 — scientific is the lesser evil vs 10+ decimals.
+    expect(formatUSD(1e-9)).toMatch(/e/);
   });
 
   it("formats tokens with K/M suffixes", () => {

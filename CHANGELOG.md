@@ -1,9 +1,70 @@
 # Changelog
 
-All notable changes to TokenBurn will be documented here. The format follows
+All notable changes to AITokenBurn will be documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+### Phase 2 — output cost & multi-turn cost-intelligence
+
+Extends AITokenBurn from an input-cost calculator into a complete
+cost-intelligence tool. Output is billed 5-6× the input rate on every
+current frontier model, so output prediction matters far more than input.
+
+#### Added
+
+- **Cascading output predictor** (`src/lib/outputPredictor.ts`). Three
+  tiers — deterministic (explicit max_tokens / word / sentence caps),
+  structural (list, table, JSON, function, report), archetype (9-class
+  rule-based classifier with calibrated ratios). Always returns a
+  log-normal-distributed low / expected / high triple with tier
+  metadata so the UI can show prediction confidence. Cap at
+  `max(min*5, input*3)` prevents the ratio model from blowing up
+  on high-input cases.
+- **Echo Probe** (`src/lib/echoProbe.ts`, `src/components/EchoProbe.tsx`).
+  Sends the prompt to a cheap oracle (Claude Haiku 4.5 default; Gemini 3
+  Flash, GPT-5.4 Nano alternates) with a STRICT system prompt that
+  forbids answering. Caps oracle output at 180 tokens so the probe
+  costs ~$0.001. Results cached by SHA-256 prompt fingerprint in
+  localStorage (FIFO at 100 entries). Vendor calls wired for all three.
+- **Self-calibrating feedback loop** (`src/lib/calibration.ts`,
+  `src/components/SelfCalibration.tsx`). IndexedDB-backed sample store.
+  Auto-detects OpenAI / Anthropic / Google response shapes; accepts
+  arrays. Median per-archetype correction factors (median is robust to
+  outliers vs mean); requires ≥5 samples per class. Confidence meter
+  saturates at 1.0 after 30 samples. Export the calibrated model as
+  JSON. Factors persist in localStorage and feed back into every
+  prediction on the main analyser page.
+- **Project / Session simulator** (`src/lib/session.ts`,
+  `/session` route). Models multi-turn cost compounding. Per-turn
+  rolling cache pattern: cache hits = tokens that were in the prior
+  call's input, cache writes = tokens appearing in input for the
+  first time. Without-cache vs with-cache (5m / 1h TTL) curves
+  overlaid; warn-coloured break-even reference line. Four presets:
+  coding agent, long research conversation, doc QA, customer support.
+- **Cost waterfall + Output share column + range bands**. Stacked bar
+  with six segments (billed input, cached input, cache write, long-ctx
+  surcharge, output, reasoning) — output dominance is visually
+  obvious. New "Out %" column with progress bar. Total / call cell
+  now shows the low-expected-high range inline.
+- **Reasoning-heavy hint**. Warn badge in the prompt header when the
+  predicted archetype is reasoning-heavy (code / agentic) and the
+  reasoning budget is 0.
+- **Proxy mode** documented in README — ~30 LoC Express recipe for
+  hands-off telemetry capture.
+
+#### Tests
+
+Added 47 cases. 101/101 total pass: cascading-predictor band coverage
+on a 50-prompt labelled corpus (≥80%); structural list/table/JSON
+within ±5% of hand-calc; 15-turn session simulator matches a
+hand-calculated reference for both cached and non-cached cases; echo
+probe response parser tolerant to whitespace/CRLF and rejects
+malformed; calibration median is robust to outliers; ingesting
+telemetry tightens held-out predictions (calibrated 0.5× factor
+applied through to a held-out prompt yields exactly 0.5× the
+baseline).
+
 
 ### Added
 

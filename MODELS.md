@@ -1,6 +1,6 @@
 # Model & Pricing Reference
 
-Single source of truth for every model TokenBurn knows about. All rates are USD per 1M
+Single source of truth for every model AITokenBurn knows about. All rates are USD per 1M
 tokens unless noted otherwise. Last bulk verification: **2026-05-23**.
 
 When updating prices: edit `src/lib/models.ts`, update `lastVerified` in this file too, and
