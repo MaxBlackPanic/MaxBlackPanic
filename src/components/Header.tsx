@@ -10,6 +10,7 @@ import {
   Home,
   Workflow,
   Menu,
+  Gamepad2,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -53,6 +54,12 @@ const NAV = [
     label: "About",
     icon: BookOpen,
     title: "What AITokenBurn does, how the tokenisers are calibrated, and the privacy guarantees.",
+  },
+  {
+    href: "/echoes",
+    label: "Echoes",
+    icon: Gamepad2,
+    title: "Play Ascendant Echoes — a match-3 ascension mini-game built with the same stack.",
   },
 ];
 
