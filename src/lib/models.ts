@@ -86,7 +86,7 @@ export interface ModelInfo {
   notes?: string;
 }
 
-const TODAY = "2026-05-23";
+const TODAY = "2026-05-30";
 
 /** Anthropic. Cache writes: 1.25x (5-min TTL), 2x (1-hr TTL). Batch: 50%. */
 const anthropicCacheMultipliers = {
@@ -108,6 +108,29 @@ const googleCacheMultipliers = {
 export const MODELS: ModelInfo[] = [
   // ============================ Anthropic ============================
   {
+    id: "claude-opus-4-8",
+    vendor: "anthropic",
+    family: "Claude 4",
+    label: "Claude Opus 4.8",
+    tokenizer: "anthropic_opus47",
+    contextWindow: 1_000_000,
+    maxOutputTokens: 64_000,
+    pricing: {
+      input: 5.0,
+      output: 25.0,
+      cachedInput: 0.5,
+      ...anthropicCacheMultipliers,
+    },
+    imageTokens: { kind: "area", divisor: 750 },
+    pdfTokensPerPage: { min: 1500, max: 3000 },
+    supportsReasoning: true,
+    tier: "frontier",
+    goodFor: ["reasoning", "code", "agentic", "creative", "general"],
+    sourceUrl: "https://www.anthropic.com/pricing",
+    lastVerified: TODAY,
+    notes: "Current Anthropic flagship. Pricing assumed identical to Opus 4.7 — re-verify against source.",
+  },
+  {
     id: "claude-opus-4-7",
     vendor: "anthropic",
     family: "Claude 4",
@@ -128,6 +151,7 @@ export const MODELS: ModelInfo[] = [
     goodFor: ["reasoning", "code", "agentic", "creative", "general"],
     sourceUrl: "https://www.anthropic.com/pricing",
     lastVerified: TODAY,
+    notes: "Previous-generation Anthropic flagship. Kept for reproducibility — prefer Opus 4.8 unless pinned.",
   },
   {
     id: "claude-opus-4-6",
@@ -566,7 +590,7 @@ export function modelsByVendor(vendor: Vendor): ModelInfo[] {
 
 /** Frontier comparison set used as the default selection in the UI. */
 export const DEFAULT_COMPARE_IDS: string[] = [
-  "claude-opus-4-7",
+  "claude-opus-4-8",
   "claude-sonnet-4-6",
   "claude-haiku-4-5",
   "gpt-5-5",
